@@ -6,20 +6,37 @@ from __future__ import annotations
 
 from datetime import date
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 어느 디렉토리에서 실행하든 backend/.env 를 찾도록 절대경로 사용.
+_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=str(_ENV_PATH), env_file_encoding="utf-8", extra="ignore"
     )
 
     # --- LLM ---
-    llm_provider: str = "mock"  # mock | openai
+    # mock | gemini | openai | openai_compatible
+    llm_provider: str = "mock"
+
+    # Gemini (OpenAI 호환 엔드포인트 사용)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-lite-latest"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+    # OpenAI
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
+
+    # OpenAI 호환 (Groq/Together/OpenRouter/Ollama 등)
+    compat_api_key: str = ""
+    compat_model: str = ""
+    compat_base_url: str = ""
 
     # --- DB ---
     database_url: str = "sqlite:///./moneymate.db"

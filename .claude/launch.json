@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "moneymate",
+      "runtimeExecutable": "/Users/yunji/Claude/MoneyMate/backend/.venv/bin/uvicorn",
+      "runtimeArgs": [
+        "app.main:app",
+        "--port",
+        "8000",
+        "--app-dir",
+        "/Users/yunji/Claude/MoneyMate/backend"
+      ],
+      "port": 8000
+    }
+  ]
+}

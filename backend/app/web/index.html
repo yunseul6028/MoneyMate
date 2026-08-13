@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>MoneyMate 💸</title>
+<style>
+  :root{
+    --bg:#f4f4f7; --card:#ffffff; --ink:#1c1c28; --muted:#8a8a9a;
+    --brand:#6c5ce7; --brand2:#a29bfe; --accent:#00b894; --warn:#ff7675;
+    --bubble-ai:#f0eefe; --bubble-user:#6c5ce7; --line:#ececf2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",sans-serif;}
+  .phone{max-width:440px;margin:0 auto;min-height:100vh;background:var(--bg);
+    display:flex;flex-direction:column;position:relative}
+
+  /* Header */
+  .hdr{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;
+    padding:20px 20px 26px;border-radius:0 0 22px 22px}
+  .hdr .row{display:flex;justify-content:space-between;align-items:baseline}
+  .hdr h1{font-size:20px;font-weight:800;letter-spacing:-.3px}
+  .hdr .date{font-size:12px;opacity:.85}
+  .hdr .hi{margin-top:10px;font-size:13px;opacity:.95}
+
+  /* Dashboard */
+  .wrap{padding:14px 14px 8px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--card);border-radius:16px;padding:16px;
+    box-shadow:0 1px 3px rgba(30,30,60,.05)}
+  .card h2{font-size:13px;color:var(--muted);font-weight:700;margin-bottom:10px}
+  .big{font-size:30px;font-weight:800;letter-spacing:-1px}
+  .big small{font-size:14px;font-weight:600;color:var(--muted);margin-left:4px}
+  .sub{display:flex;gap:10px;margin-top:12px}
+  .sub .box{flex:1;background:#fafaff;border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px}
+  .sub .box .k{font-size:11px;color:var(--muted)}
+  .sub .box .v{font-size:15px;font-weight:800;margin-top:3px}
+  .sub .box .v.warn{color:var(--warn)}
+
+  .cats{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .cat{display:flex;align-items:center;gap:9px;font-size:13px}
+  .cat .name{width:64px;font-weight:600}
+  .cat .bar{flex:1;height:8px;background:#f0f0f6;border-radius:6px;overflow:hidden}
+  .cat .bar span{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:6px}
+  .cat .amt{width:78px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .oneliner{margin-top:12px;background:var(--bubble-ai);border-radius:12px;
+    padding:11px 13px;font-size:13px;font-weight:600;color:#4b3fb0;display:flex;gap:8px;align-items:center}
+
+  /* Chat */
+  .chat-h{font-size:13px;color:var(--muted);font-weight:700;padding:6px 6px 2px}
+  .chat{display:flex;flex-direction:column;gap:10px;padding:4px 4px 12px}
+  .msg{max-width:82%;padding:11px 14px;border-radius:16px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .msg.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:5px}
+  .msg.user{align-self:flex-end;background:var(--bubble-user);color:#fff;border-bottom-right-radius:5px}
+  .msg .tag{display:inline-block;font-size:10px;font-weight:800;color:var(--brand);
+    background:#efeafe;border-radius:6px;padding:1px 6px;margin-bottom:6px}
+  .typing{align-self:flex-start;color:var(--muted);font-size:13px;padding:6px 10px}
+
+  /* Quick chips + input */
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:6px 12px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{white-space:nowrap;background:#fff;border:1px solid var(--line);color:#5a5a6e;
+    font-size:12px;font-weight:600;padding:7px 12px;border-radius:20px;cursor:pointer}
+  .chip:active{background:#f0eefe}
+  .inbar{position:sticky;bottom:0;background:var(--bg);padding:8px 12px 16px;
+    display:flex;gap:8px;border-top:1px solid var(--line)}
+  .inbar input{flex:1;border:1px solid var(--line);border-radius:22px;padding:12px 16px;
+    font-size:14px;outline:none;background:#fff}
+  .inbar input:focus{border-color:var(--brand2)}
+  .inbar button{background:var(--brand);color:#fff;border:none;border-radius:22px;
+    width:46px;font-size:18px;cursor:pointer}
+  .inbar button:disabled{opacity:.5}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="hdr">
+    <div class="row"><h1>MoneyMate 💸</h1><div class="date" id="date">—</div></div>
+    <div class="hi" id="hi">불러오는 중…</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card" id="dash">
+      <h2>이번 달 금융 상태</h2>
+      <div class="big" id="monthExp">—</div>
+      <div class="sub">
+        <div class="box"><div class="k">남은 예산</div><div class="v" id="remain">—</div></div>
+        <div class="box"><div class="k">다음 카드 결제</div><div class="v warn" id="cardBill">—</div></div>
+      </div>
+      <div class="cats" id="cats" style="margin-top:14px"></div>
+      <div class="oneliner" id="oneliner">🤖 <span>…</span></div>
+    </div>
+
+    <div class="chat-h">💬 MoneyMate와의 대화</div>
+    <div class="chat" id="chat"></div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+  <div class="inbar">
+    <input id="inp" placeholder="금융 관련 뭐든 물어봐…" autocomplete="off" />
+    <button id="send">➤</button>
+  </div>
+</div>
+
+<script>
+const won = n => (n==null?'—':Number(n).toLocaleString('ko-KR')+'원');
+const $ = s => document.querySelector(s);
+
+async function loadDashboard(){
+  const d = await (await fetch('/api/dashboard')).json();
+  $('#date').textContent = d.today;
+  $('#hi').textContent = `${d.user}야, 오늘도 내가 지켜보고 있어 👀`;
+  $('#monthExp').innerHTML = won(d.month_expense) + '<small>이번 달 지출</small>';
+  $('#remain').textContent = won(d.remaining_budget);
+  $('#cardBill').textContent = won(d.upcoming_card_bill);
+  $('#oneliner').innerHTML = '🤖 <span>'+d.one_liner+'</span>';
+  const top = d.categories.slice(0,5);
+  const max = Math.max(...top.map(c=>c.month_amount),1);
+  $('#cats').innerHTML = top.map(c=>`
+    <div class="cat"><div class="name">${c.category}</div>
+      <div class="bar"><span style="width:${Math.round(c.month_amount/max*100)}%"></span></div>
+      <div class="amt">${won(c.month_amount)}</div></div>`).join('');
+}
+
+function addMsg(text, who, tag){
+  const el = document.createElement('div');
+  el.className = 'msg '+who;
+  el.innerHTML = (tag?`<span class="tag">${tag}</span>`:'') + text.replace(/</g,'&lt;');
+  $('#chat').appendChild(el);
+  el.scrollIntoView({behavior:'smooth',block:'end'});
+  return el;
+}
+function typing(){
+  const el=document.createElement('div');el.className='typing';el.textContent='MoneyMate가 입력 중…';
+  $('#chat').appendChild(el);el.scrollIntoView({behavior:'smooth',block:'end'});return el;
+}
+
+async function loadProactive(){
+  const t = typing();
+  try{
+    const r = await (await fetch('/api/proactive')).json();
+    t.remove();
+    if(r.should_speak) addMsg(r.message,'ai','MoneyMate가 먼저 말을 걸었어요');
+    else addMsg('오늘은 특별히 신경 쓸 건 없어 보여 👍 궁금한 거 있으면 물어봐!','ai');
+  }catch(e){ t.remove(); addMsg('연결에 문제가 있어. 서버가 켜져 있는지 확인해줘.','ai'); }
+}
+
+async function sendMsg(text){
+  if(!text.trim()) return;
+  addMsg(text,'user');
+  $('#inp').value=''; $('#send').disabled=true;
+  const t = typing();
+  try{
+    const r = await (await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:text})})).json();
+    t.remove();
+    addMsg(r.reply,'ai', r.kind==='coach'?'맥락 이해 완료':null);
+  }catch(e){ t.remove(); addMsg('앗, 잠깐 문제가 생겼어. 다시 시도해줘.','ai'); }
+  $('#send').disabled=false;
+}
+
+const QUICK = ['이번 달 왜 이렇게 많이 썼지?','시험기간이라 배달 많이 시켰어','다음 카드값 얼마 나와?','구독 뭐뭐 있어?'];
+$('#chips').innerHTML = QUICK.map(q=>`<div class="chip">${q}</div>`).join('');
+$('#chips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>sendMsg(c.textContent));
+$('#send').onclick=()=>sendMsg($('#inp').value);
+$('#inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg($('#inp').value)});
+
+loadDashboard();
+loadProactive();
+</script>
+</body>
+</html>
