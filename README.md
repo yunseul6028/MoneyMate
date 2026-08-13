@@ -41,15 +41,33 @@ Chat + Tools / Simulation Engine
 - [ ] STEP 8. 소비 분석 엔진
 - [ ] STEP 9. Proactive Risk Agent
 - [ ] STEP 10. LLM Financial Coach
-- [ ] STEP 11. Chat UI
-- [ ] STEP 12. "먼저 말을 거는" UX
+- [x] STEP 11. Chat UI (Next.js + FastAPI 프리뷰)
+- [x] STEP 12. "먼저 말을 거는" UX (Proactive 메시지 + 맥락 이해)
 - [ ] STEP 13. 가상 소비 시뮬레이션
 
 ## 빠른 시작
 
+**백엔드** (FastAPI, :8000)
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m app.scripts.seed_and_check   # DB 생성 + Mock 데이터 시드 + 요약 출력
+cp .env.example .env          # LLM 키는 .env 에 (없어도 mock 으로 동작)
+uvicorn app.main:app --port 8000
+```
+
+**프론트엔드** (Next.js, :3000 — `/api` 는 :8000 으로 프록시)
+```bash
+cd frontend
+npm install
+npm run dev                   # http://localhost:3000
+```
+
+**검증 스크립트** (LLM 키 없이도 실행 가능)
+```bash
+cd backend && source .venv/bin/activate
+python -m app.scripts.seed_and_check    # STEP 5~6
+python -m app.scripts.check_analysis    # STEP 8
+python -m app.scripts.check_agent       # STEP 9
+python -m app.scripts.check_coach       # STEP 10 (LLM)
 ```

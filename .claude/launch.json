@@ -12,6 +12,17 @@
         "/Users/yunji/Claude/MoneyMate/backend"
       ],
       "port": 8000
+    },
+    {
+      "name": "moneymate-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/yunji/Claude/MoneyMate/frontend",
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }
