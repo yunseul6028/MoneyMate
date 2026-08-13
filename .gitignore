@@ -1,0 +1,14 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+*.db
+.env
+
+# Node (STEP 11~)
+node_modules/
+.next/
+frontend/out/
+
+# OS
+.DS_Store
