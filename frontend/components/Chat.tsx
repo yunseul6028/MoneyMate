@@ -6,11 +6,19 @@ import { getProactive, sendChat } from "@/lib/api";
 type Msg = { who: "ai" | "user"; text: string; tag?: string };
 
 const QUICK = [
+  "20만원짜리 기타 사도 될까?",
   "이번 달 왜 이렇게 많이 썼지?",
   "시험기간이라 배달 많이 시켰어",
   "다음 카드값 얼마 나와?",
   "구독 뭐뭐 있어?",
 ];
+
+const tagFor = (kind: string): string | undefined =>
+  kind === "coach"
+    ? "맥락 이해 완료"
+    : kind === "simulation"
+      ? "가상 시뮬레이션"
+      : undefined;
 
 export default function Chat() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -51,7 +59,7 @@ export default function Chat() {
       const r = await sendChat(text);
       setMsgs((m) => [
         ...m,
-        { who: "ai", text: r.reply, tag: r.kind === "coach" ? "맥락 이해 완료" : undefined },
+        { who: "ai", text: r.reply, tag: tagFor(r.kind) },
       ]);
     } catch {
       setMsgs((m) => [...m, { who: "ai", text: "앗, 잠깐 문제가 생겼어. 다시 시도해줘." }]);

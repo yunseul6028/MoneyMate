@@ -43,7 +43,7 @@ Chat + Tools / Simulation Engine
 - [ ] STEP 10. LLM Financial Coach
 - [x] STEP 11. Chat UI (Next.js + FastAPI 프리뷰)
 - [x] STEP 12. "먼저 말을 거는" UX (Proactive 메시지 + 맥락 이해)
-- [ ] STEP 13. 가상 소비 시뮬레이션
+- [x] STEP 13. 가상 소비 시뮬레이션 ("20만원 기타 사도 될까?")
 
 ## 빠른 시작
 

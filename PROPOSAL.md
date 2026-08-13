@@ -109,7 +109,7 @@ flowchart TD
 | 10 | LLM Financial Coach (Gemini 연동) | ✅ |
 | 11 | Chat UI (Next.js) | ✅ |
 | 12 | "먼저 말을 거는" UX | ✅ |
-| 13 | 가상 소비 시뮬레이션 ("20만원 써도 돼?") | ⬜ 예정 |
+| 13 | 가상 소비 시뮬레이션 ("20만원 써도 돼?") | ✅ |
 
 **부가 완료**: 친근한 금액 표기(`약 32만원`·`7만 6천원`), 폰 원격 개발 환경(Remote Control), GitHub 백업.
 
@@ -163,7 +163,6 @@ chat_messages    대화 히스토리
 
 ## 10. 향후 계획
 
-- **STEP 13** — 가상 소비 시뮬레이션: 실제 결제 없이 "이거 사면 재무가 어떻게 되는지" 계산·설명.
 - 새 거래 입력 시 Proactive Agent 자동 반영 (실시간 반응).
 - 실 금융 API 연동 (`RealFinancialDataProvider`).
 - 사용자 인증 · 다중 사용자 · Postgres 이전.

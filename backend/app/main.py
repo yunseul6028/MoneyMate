@@ -31,6 +31,11 @@ from app.services.chat import chat_answer
 from app.services.classifier import record_correction
 from app.services.dashboard import build_dashboard
 from app.services.ingest import ingest_transactions
+from app.services.simulation import (
+    is_purchase_question,
+    parse_amount,
+    simulate_and_explain,
+)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
@@ -77,6 +82,12 @@ class IngestIn(BaseModel):
 
 class CorrectIn(BaseModel):
     category: str
+
+
+class SimulateIn(BaseModel):
+    amount: int
+    on_credit: bool = True
+    note: str = ""
 
 
 @app.get("/")
@@ -143,12 +154,33 @@ def correct_category(tx_id: int, inp: CorrectIn) -> dict:
     return {"ok": True, "category": inp.category, "source": "user"}
 
 
+@app.post("/api/simulate")
+def simulate(inp: SimulateIn) -> dict:
+    """가상 소비 시뮬레이션 — 실제 결제 없이 재무 영향 계산 + 코치 설명."""
+    llm = get_llm()
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        report = analyze(s, uid, settings.demo_today)
+        res = simulate_and_explain(
+            llm, report, inp.amount, inp.note or f"{inp.amount}원 지출", inp.on_credit
+        )
+    return {"kind": "simulation", **res}
+
+
 @app.post("/api/chat")
 def chat(inp: ChatIn) -> dict:
     llm = get_llm()
     with session_scope() as s:
         uid = _demo_user_id(s)
         report = analyze(s, uid, settings.demo_today)
+
+        # 구매 질문 + 금액이 있으면 → 가상 소비 시뮬레이션
+        if is_purchase_question(inp.message):
+            amount = parse_amount(inp.message)
+            if amount:
+                res = simulate_and_explain(llm, report, amount, inp.message)
+                return {"reply": res["reply"], "kind": "simulation",
+                        "simulation": res["simulation"]}
 
         # 사용자가 맥락을 설명하면(예: "시험기간이라") → 코치 파이프라인으로 응답
         tokens = infer_ack_tokens(inp.message)
