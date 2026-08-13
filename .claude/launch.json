@@ -9,7 +9,10 @@
         "--port",
         "8000",
         "--app-dir",
-        "/Users/yunji/Claude/MoneyMate/backend"
+        "/Users/yunji/Claude/MoneyMate/backend",
+        "--reload",
+        "--reload-dir",
+        "/Users/yunji/Claude/MoneyMate/backend/app"
       ],
       "port": 8000
     },
