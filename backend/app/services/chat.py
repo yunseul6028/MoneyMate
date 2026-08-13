@@ -5,6 +5,7 @@ LLM 이 '제공된 숫자만' 근거로 답하게 한다. 숫자 계산/시뮬�
 """
 from __future__ import annotations
 
+from app.core.format import friendly_won as won
 from app.llm.base import LLMProvider
 from app.services.analysis import AnalysisReport
 
@@ -20,24 +21,28 @@ CHAT_SYSTEM = """너는 'MoneyMate', 대학생을 위한 금융 친구 AI야.
 [비용의 시간 단위 — 중요]
 - 구독은 매달 고정으로 빠져나가는 '고정비'야. "이번 주에 구독을 줄이자"처럼 주 단위로 말하지 마.
   구독 점검은 "다음 결제 전에 안 쓰는 거 한 번 정리해볼까?"처럼 월 단위 관점으로 얘기해.
-- 주/일 단위로 바로 조절할 수 있는 건 배달·카페 같은 '변동비'야. 단기 조절 얘기는 여기에 붙여."""
+- 주/일 단위로 바로 조절할 수 있는 건 배달·카페 같은 '변동비'야. 단기 조절 얘기는 여기에 붙여.
+
+[금액 표기]
+- 아래 데이터의 금액은 이미 '약 32만원', '7만 6천원'처럼 반올림돼 있어. 그 표현을 그대로 써.
+- "324,207원"처럼 원 단위 숫자를 전부 나열하지 마. 대화에선 '약'을 붙여 대략적으로 말해도 좋아."""
 
 
 def build_facts(report: AnalysisReport) -> str:
     r = report
-    cats = ", ".join(f"{c.category} {c.month_amount:,}원" for c in r.categories)
-    subs = ", ".join(f"{s['merchant']}({s['amount']:,}원)" for s in r.subscriptions)
+    cats = ", ".join(f"{c.category} {won(c.month_amount)}" for c in r.categories)
+    subs = ", ".join(f"{s['merchant']}({won(s['amount'])})" for s in r.subscriptions)
     return "\n".join([
         f"- 오늘: {r.today}",
-        f"- 이번 달 총 지출: {r.month_expense:,}원 (지난달 동기간 {r.last_month_expense:,}원)",
-        f"- 이번 달 소득: {r.month_income:,}원 (지난달 동기간 {r.last_month_income:,}원)",
-        f"- 이번 주 지출: {r.week_expense:,}원 (평소 주 {r.avg_weekly_expense:,}원)",
-        f"- 월 예산: {r.monthly_budget:,}원 / 남은 예산: {r.remaining_budget:,}원",
-        f"- 이 페이스 예상 월지출: {r.projected_month_expense:,}원",
-        f"- 다음 카드 결제 예정: {r.upcoming_card_bill:,}원 ({r.next_billing_date})",
+        f"- 이번 달 총 지출: {won(r.month_expense)} (지난달 동기간 {won(r.last_month_expense)})",
+        f"- 이번 달 소득: {won(r.month_income)} (지난달 동기간 {won(r.last_month_income)})",
+        f"- 이번 주 지출: {won(r.week_expense)} (평소 주 {won(r.avg_weekly_expense)})",
+        f"- 월 예산: {won(r.monthly_budget)} / 남은 예산: {won(r.remaining_budget)}",
+        f"- 이 페이스 예상 월지출: {won(r.projected_month_expense)}",
+        f"- 다음 카드 결제 예정: {won(r.upcoming_card_bill)} ({r.next_billing_date})",
         f"- 카테고리별 이번 달: {cats}",
         f"- 구독 {len(r.subscriptions)}개: {subs}",
-        f"- 배달: 이번주 {r.delivery_week:,}원 (평소 {r.delivery_baseline_week_avg:,}원)",
+        f"- 배달: 이번주 {won(r.delivery_week)} (평소 {won(r.delivery_baseline_week_avg)})",
     ])
 
 

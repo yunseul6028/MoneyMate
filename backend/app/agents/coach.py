@@ -29,17 +29,17 @@ COACH_SYSTEM = """너는 'MoneyMate'라는, 대학생을 위한 금융 친구 AI
 [비용의 시간 단위 — 중요]
 - 구독은 매달 고정으로 나가는 '고정비'야. "이번 주에 구독을 줄이자"처럼 주 단위로 말하지 마.
   구독 얘기는 "다음 결제 전에 안 쓰는 거 정리해볼까?"처럼 월 단위 관점으로 해.
-- 배달·카페처럼 주/일 단위로 바로 조절되는 건 '변동비'. 단기 조절 제안은 여기에만 붙여."""
+- 배달·카페처럼 주/일 단위로 바로 조절되는 건 '변동비'. 단기 조절 제안은 여기에만 붙여.
+
+[금액 표기]
+- 초안의 금액은 이미 '약 32만원', '7만 6천원'처럼 반올림돼 있어. 그 표현을 그대로 써.
+- "324,207원"처럼 원 단위 숫자를 전부 나열하지 마."""
 
 
 def _facts_block(result: ProactiveResult) -> str:
-    lines: list[str] = []
-    if result.primary:
-        for k, v in result.primary.finding.metrics.items():
-            lines.append(f"- {k}: {v}")
-    for s in result.supporting:
-        lines.append(f"- {s['line']}")
-    return "\n".join(lines) if lines else "- (추가 숫자 없음)"
+    # 원 단위 원시 metrics 는 넣지 않는다(초안·보조문장에 이미 친근한 금액으로 들어있음).
+    lines = [s["line"] for s in result.supporting]
+    return "\n".join(lines) if lines else "- (초안의 숫자를 그대로 사용)"
 
 
 def _build_user_prompt(result: ProactiveResult) -> str:

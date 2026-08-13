@@ -54,5 +54,18 @@ export async function sendChat(message: string): Promise<ChatResp> {
   return r.json();
 }
 
-export const won = (n: number | null | undefined) =>
-  n == null ? "—" : Number(n).toLocaleString("ko-KR") + "원";
+// 친근한 금액 표기 (백엔드 app/core/format.py 와 동일 규칙)
+//  10만↑: 만원 반올림 · 1만~10만: 천원 반올림 · 1만 미만: 콤마 그대로
+export const won = (n: number | null | undefined): string => {
+  if (n == null) return "—";
+  const sign = n < 0 ? "-" : "";
+  const v = Math.abs(Math.round(n));
+  if (v < 10_000) return `${sign}${v.toLocaleString("ko-KR")}원`;
+  if (v < 100_000) {
+    const r = Math.round(v / 1000) * 1000;
+    const man = Math.floor(r / 10_000);
+    const cheon = Math.floor((r % 10_000) / 1000);
+    return `${sign}${man}만${cheon ? ` ${cheon}천` : ""}원`;
+  }
+  return `${sign}${Math.round(v / 10_000)}만원`;
+};

@@ -25,6 +25,7 @@ from app.agents.types import (
     ProactiveResult,
     Verdict,
 )
+from app.core.format import friendly_won as _won  # 친근한 금액 표기(약 32만원 등)
 from app.db.models import AgentEvent
 from app.services.analysis import AnalysisReport
 
@@ -61,10 +62,6 @@ def _recent_triggers(session: Session, user_id: int, now: datetime, cooldown_day
         .all()
     )
     return {r[0] for r in rows}
-
-
-def _won(n: float) -> str:
-    return f"{n:,.0f}원"
 
 
 def _build_message(primary: Verdict, report: AnalysisReport, supporting: list[dict]) -> str:
