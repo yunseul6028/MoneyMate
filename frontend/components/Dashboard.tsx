@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { getDashboard, won, type Dashboard } from "@/lib/api";
 
-export default function DashboardView() {
+export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number }) {
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState(false);
 
   useEffect(() => {
     getDashboard().then(setD).catch(() => setErr(true));
-  }, []);
+  }, [refreshKey]);
 
   return (
     <>

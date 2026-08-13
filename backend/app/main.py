@@ -21,13 +21,16 @@ from app.agents.coach import speak
 from app.agents.critic import infer_ack_tokens
 from app.agents.proactive import decide
 from app.config import settings
+from app.core import categories as C
 from app.db.database import init_db, session_scope
-from app.db.models import User
+from app.db.models import Transaction, User
 from app.llm.factory import get_llm
 from app.providers.mock_provider import MockFinancialDataProvider
 from app.services.analysis import analyze
 from app.services.chat import chat_answer
+from app.services.classifier import record_correction
 from app.services.dashboard import build_dashboard
+from app.services.ingest import ingest_transactions
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
@@ -67,6 +70,15 @@ class ChatIn(BaseModel):
     message: str
 
 
+class IngestIn(BaseModel):
+    text: str
+    payment_method: str = "credit"
+
+
+class CorrectIn(BaseModel):
+    category: str
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
@@ -97,6 +109,38 @@ def proactive() -> dict:
             "trigger": res.primary.finding.kind,
             "message": speak(llm, res, report),
         }
+
+
+@app.get("/api/categories")
+def categories() -> dict:
+    return {"expense": C.EXPENSE_CATEGORIES}
+
+
+@app.post("/api/ingest")
+def ingest(inp: IngestIn) -> dict:
+    """카드 결제 내역 텍스트를 받아 각 줄을 자동 분류·저장."""
+    llm = get_llm()
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        items = ingest_transactions(
+            s, uid, inp.text, inp.payment_method, settings.demo_today, llm
+        )
+    return {"added": len(items), "items": items}
+
+
+@app.post("/api/transactions/{tx_id}/category")
+def correct_category(tx_id: int, inp: CorrectIn) -> dict:
+    """분류 수정 → 개인화 규칙으로 학습(다음부터 같은 가맹점 자동 반영)."""
+    if inp.category not in C.EXPENSE_CATEGORIES:
+        return {"ok": False, "error": "unknown_category"}
+    with session_scope() as s:
+        tx = s.get(Transaction, tx_id)
+        if tx is None:
+            return {"ok": False, "error": "not_found"}
+        tx.category = inp.category
+        tx.category_source = "user"
+        record_correction(s, tx.user_id, tx.merchant, inp.category)
+    return {"ok": True, "category": inp.category, "source": "user"}
 
 
 @app.post("/api/chat")

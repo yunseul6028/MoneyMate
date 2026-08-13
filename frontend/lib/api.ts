@@ -35,6 +35,15 @@ export type ProactiveResp = {
 
 export type ChatResp = { reply: string; kind: "coach" | "chat"; decision?: string };
 
+export type IngestItem = {
+  id: number;
+  merchant: string;
+  amount: number;
+  category: string;
+  source: string;
+  source_label: string;
+};
+
 async function jget<T>(url: string): Promise<T> {
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`GET ${url} → ${r.status}`);
@@ -43,6 +52,26 @@ async function jget<T>(url: string): Promise<T> {
 
 export const getDashboard = () => jget<Dashboard>("/api/dashboard");
 export const getProactive = () => jget<ProactiveResp>("/api/proactive");
+export const getCategories = () => jget<{ expense: string[] }>("/api/categories");
+
+async function jpost<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`POST ${url} → ${r.status}`);
+  return r.json();
+}
+
+export const ingest = (text: string, payment_method = "credit") =>
+  jpost<{ added: number; items: IngestItem[] }>("/api/ingest", { text, payment_method });
+
+export const correctCategory = (id: number, category: string) =>
+  jpost<{ ok: boolean; category: string; source: string }>(
+    `/api/transactions/${id}/category`,
+    { category }
+  );
 
 export async function sendChat(message: string): Promise<ChatResp> {
   const r = await fetch("/api/chat", {
