@@ -73,6 +73,24 @@ export const correctCategory = (id: number, category: string) =>
     { category }
   );
 
+export type Profile = {
+  name: string;
+  monthly_budget: number;
+  card_billing_day: number;
+};
+
+export const getProfile = () => jget<Profile>("/api/profile");
+
+export async function updateProfile(name: string, monthly_budget: number) {
+  const r = await fetch("/api/profile", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, monthly_budget }),
+  });
+  if (!r.ok) throw new Error(`PATCH /api/profile → ${r.status}`);
+  return r.json();
+}
+
 export async function sendChat(message: string): Promise<ChatResp> {
   const r = await fetch("/api/chat", {
     method: "POST",

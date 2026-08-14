@@ -23,7 +23,7 @@ from app.agents.proactive import decide
 from app.config import settings
 from app.core import categories as C
 from app.db.database import init_db, session_scope
-from app.db.models import Transaction, User
+from app.db.models import Transaction, User, UserProfile
 from app.llm.factory import get_llm
 from app.providers.mock_provider import MockFinancialDataProvider
 from app.services.analysis import analyze
@@ -90,6 +90,11 @@ class SimulateIn(BaseModel):
     note: str = ""
 
 
+class ProfileIn(BaseModel):
+    name: str | None = None
+    monthly_budget: int | None = None
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
@@ -125,6 +130,33 @@ def proactive() -> dict:
 @app.get("/api/categories")
 def categories() -> dict:
     return {"expense": C.EXPENSE_CATEGORIES}
+
+
+@app.get("/api/profile")
+def get_profile() -> dict:
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        u = s.get(User, uid)
+        p = s.query(UserProfile).filter(UserProfile.user_id == uid).first()
+        return {
+            "name": u.name,
+            "monthly_budget": p.monthly_budget if p else 0,
+            "card_billing_day": p.card_billing_day if p else 14,
+        }
+
+
+@app.patch("/api/profile")
+def update_profile(inp: ProfileIn) -> dict:
+    """온보딩/설정에서 이름·월 예산 저장."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        u = s.get(User, uid)
+        p = s.query(UserProfile).filter(UserProfile.user_id == uid).first()
+        if inp.name and inp.name.strip():
+            u.name = inp.name.strip()[:80]
+        if inp.monthly_budget and inp.monthly_budget > 0:
+            p.monthly_budget = inp.monthly_budget
+        return {"ok": True, "name": u.name, "monthly_budget": p.monthly_budget}
 
 
 @app.post("/api/ingest")
