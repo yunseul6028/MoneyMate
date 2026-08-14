@@ -16,7 +16,7 @@ MVP 테이블
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
@@ -37,7 +37,10 @@ from app.db.database import Base
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    # 기록 시각도 앱의 단일 시계를 따른다(알림 피로 로직이 같은 타임라인 위에서 동작).
+    from app.core.clock import now
+
+    return now()
 
 
 class User(Base):

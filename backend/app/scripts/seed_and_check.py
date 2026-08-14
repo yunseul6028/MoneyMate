@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from app.config import settings
+from app.core import clock
 from app.core import categories as C
 from app.db.database import init_db, session_scope
 from app.db.models import Transaction
@@ -17,7 +18,7 @@ from app.providers.mock_provider import MockFinancialDataProvider
 
 
 def run() -> None:
-    print(f"▶ DEMO_TODAY = {settings.demo_today}  |  DB = {settings.database_url}")
+    print(f"▶ DEMO_TODAY = {clock.today()}  |  DB = {settings.database_url}")
     init_db()
 
     provider = MockFinancialDataProvider()

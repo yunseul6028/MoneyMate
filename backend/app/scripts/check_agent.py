@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from app.agents.analyst import run_analyst
 from app.agents.critic import infer_ack_tokens, run_critic
 from app.agents.proactive import decide, record_event
-from app.config import settings
+from app.core import clock
 from app.db.database import init_db, session_scope
 from app.providers.mock_provider import MockFinancialDataProvider
 from app.services.analysis import analyze
@@ -32,11 +32,11 @@ def run() -> None:
         provider.sync_transactions(s, user.id)
         uid = user.id
 
-    now = datetime(2026, 8, 13, 21, 0, tzinfo=timezone.utc)
+    now = clock.now()
 
     # --- Analyst / Critic 원시 출력 ---
     with session_scope() as s:
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         findings = run_analyst(report)
         print("=== Financial Analyst: 탐지된 신호 ===")
         for f in findings:
@@ -50,7 +50,7 @@ def run() -> None:
     _line()
     print("① 첫 접촉 (사용자가 아직 아무 설명 안 함)\n")
     with session_scope() as s:
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         res = decide(s, uid, report, acknowledged=set(), now=now)
         print(f"먼저 말 걸기? {res.should_speak}  |  이유: {res.reason}")
         if res.should_speak:
@@ -63,7 +63,7 @@ def run() -> None:
     _line()
     print("② 2시간 뒤 다시 판단 (알림 피로 방지 확인)\n")
     with session_scope() as s:
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         res = decide(s, uid, report, acknowledged=set(), now=now + timedelta(hours=2))
         print(f"먼저 말 걸기? {res.should_speak}  |  이유: {res.reason}")
 
@@ -73,7 +73,7 @@ def run() -> None:
     print(f'③ 사용자 답변: "{user_reply}"')
     print(f"   → 추출된 맥락 토큰: {tokens}\n")
     with session_scope() as s:
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         # 시험기간은 배달 급증을 설명 → delivery/weekly 는 빠지고, 카드/예산 코칭이 남음
         res = decide(s, uid, report, acknowledged=tokens, now=now)
         print(f"먼저 말 걸기? {res.should_speak}  |  이유: {res.reason}")

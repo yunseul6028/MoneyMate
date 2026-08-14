@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -20,8 +20,8 @@ from pydantic import BaseModel
 from app.agents.coach import speak
 from app.agents.critic import infer_ack_tokens
 from app.agents.proactive import decide
-from app.config import settings
 from app.core import categories as C
+from app.core import clock
 from app.db.database import init_db, session_scope
 from app.db.models import Transaction, User, UserProfile
 from app.llm.factory import get_llm
@@ -66,9 +66,7 @@ def _demo_user_id(s) -> int:
 
 
 def _now() -> datetime:
-    # 데모 기준 '오늘' 정오
-    d = settings.demo_today
-    return datetime(d.year, d.month, d.day, 12, 0, tzinfo=timezone.utc)
+    return clock.now()
 
 
 class ChatIn(BaseModel):
@@ -105,7 +103,7 @@ def dashboard() -> dict:
     with session_scope() as s:
         uid = _demo_user_id(s)
         user = s.get(User, uid)
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         return build_dashboard(report, user.name)
 
 
@@ -115,7 +113,7 @@ def proactive() -> dict:
     llm = get_llm()
     with session_scope() as s:
         uid = _demo_user_id(s)
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         res = decide(s, uid, report, acknowledged=set(), now=_now())
         if not res.should_speak:
             return {"should_speak": False, "message": "", "decision": None}
@@ -166,7 +164,7 @@ def ingest(inp: IngestIn) -> dict:
     with session_scope() as s:
         uid = _demo_user_id(s)
         items = ingest_transactions(
-            s, uid, inp.text, inp.payment_method, settings.demo_today, llm
+            s, uid, inp.text, inp.payment_method, clock.today(), llm
         )
     return {"added": len(items), "items": items}
 
@@ -192,7 +190,7 @@ def simulate(inp: SimulateIn) -> dict:
     llm = get_llm()
     with session_scope() as s:
         uid = _demo_user_id(s)
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         res = simulate_and_explain(
             llm, report, inp.amount, inp.note or f"{inp.amount}원 지출", inp.on_credit
         )
@@ -204,7 +202,7 @@ def chat(inp: ChatIn) -> dict:
     llm = get_llm()
     with session_scope() as s:
         uid = _demo_user_id(s)
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
 
         # 구매 질문 + 금액이 있으면 → 가상 소비 시뮬레이션
         if is_purchase_question(inp.message):

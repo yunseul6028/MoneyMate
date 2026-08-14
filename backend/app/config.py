@@ -41,9 +41,11 @@ class Settings(BaseSettings):
     # --- DB ---
     database_url: str = "sqlite:///./moneymate.db"
 
-    # --- 데모 기준 '오늘' ---
-    # 실서비스에서는 date.today() 를 쓰지만, 데모/재현성을 위해 고정 날짜를 사용.
+    # --- 앱의 '오늘' (날짜 감각의 단일 소스) ---
+    # live_date=False: demo_today 로 고정(데모·재현성). True: 실제 date.today() 사용.
+    # 앱 전역은 settings 를 직접 보지 말고 app.core.clock 의 today()/now() 를 쓴다.
     demo_today: date = date(2026, 8, 13)
+    live_date: bool = False
 
 
 @lru_cache

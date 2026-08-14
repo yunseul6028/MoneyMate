@@ -13,9 +13,11 @@ fallback_message 는 규칙기반 임시 문구. STEP 10 에서 LLM Coach 가 �
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
+
+from app.core.clock import now as _clock_now
 
 from app.agents.analyst import run_analyst
 from app.agents.critic import run_critic
@@ -111,7 +113,7 @@ def decide(
     global_cooldown_hours: int = 20,
 ) -> ProactiveResult:
     acknowledged = acknowledged or set()
-    now = now or datetime.now(timezone.utc)
+    now = now or _clock_now()
 
     findings = run_analyst(report)
     verdicts = [run_critic(f, report, acknowledged) for f in findings]

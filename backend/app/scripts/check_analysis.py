@@ -1,7 +1,7 @@
 """소비 분석 엔진 검증 (STEP 8).  python -m app.scripts.check_analysis"""
 from __future__ import annotations
 
-from app.config import settings
+from app.core import clock
 from app.db.database import init_db, session_scope
 from app.providers.mock_provider import MockFinancialDataProvider
 from app.services.analysis import analyze
@@ -25,7 +25,7 @@ def run() -> None:
         uid = user.id
 
     with session_scope() as s:
-        r = analyze(s, uid, settings.demo_today)
+        r = analyze(s, uid, clock.today())
 
     print(f"=== 소비 분석 ({r.today}) — {user.name} ===\n")
     print("[이번 달]")

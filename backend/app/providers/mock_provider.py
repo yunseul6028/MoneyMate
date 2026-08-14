@@ -9,7 +9,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core import clock
 from app.data.merchant_rules import GLOBAL_MERCHANT_RULES
 from app.data.mock_data import generate_mock_ledger
 from app.db.models import MerchantRule, Transaction, User, UserProfile
@@ -18,7 +18,7 @@ from app.providers.base import FinancialDataProvider
 
 class MockFinancialDataProvider(FinancialDataProvider):
     def __init__(self, today: date | None = None):
-        self.today = today or settings.demo_today
+        self.today = today or clock.today()
 
     def ensure_global_rules(self, session: Session) -> int:
         """전역 가맹점 규칙을 (없으면) 적재."""

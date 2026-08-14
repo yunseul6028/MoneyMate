@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from app.agents.coach import speak
 from app.agents.critic import infer_ack_tokens
 from app.agents.proactive import decide, record_event
-from app.config import settings
+from app.core import clock
 from app.db.database import init_db, session_scope
 from app.llm.factory import get_llm
 from app.providers.mock_provider import MockFinancialDataProvider
@@ -29,12 +29,12 @@ def run() -> None:
         provider.sync_transactions(s, user.id)
         uid = user.id
 
-    now = datetime(2026, 8, 13, 21, 0, tzinfo=timezone.utc)
+    now = clock.now()
 
     print("─" * 64)
     print("① 먼저 말 걸기 (배달 급증 감지)\n")
     with session_scope() as s:
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         res = decide(s, uid, report, acknowledged=set(), now=now)
         print("💬 MoneyMate:")
         print("   " + speak(llm, res, report).replace("\n", "\n   "))
@@ -44,7 +44,7 @@ def run() -> None:
     reply = "아 이번주 시험기간이라 계속 배달시켜먹었어ㅠㅠ"
     print(f'② 사용자: "{reply}"\n')
     with session_scope() as s:
-        report = analyze(s, uid, settings.demo_today)
+        report = analyze(s, uid, clock.today())
         res = decide(s, uid, report, acknowledged=infer_ack_tokens(reply), now=now)
         print("💬 MoneyMate:")
         print("   " + speak(llm, res, report).replace("\n", "\n   "))
