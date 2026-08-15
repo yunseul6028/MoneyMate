@@ -3,21 +3,27 @@
 import { useEffect, useState } from "react";
 import DashboardView from "@/components/Dashboard";
 import Chat from "@/components/Chat";
-import IngestPanel from "@/components/IngestPanel";
+import TestPanel from "@/components/TestPanel";
 import Onboarding from "@/components/Onboarding";
 
 const ONBOARD_KEY = "moneymate_onboarded";
 
 export default function Home() {
   const [refresh, setRefresh] = useState(0);
-  const [onboarded, setOnboarded] = useState<boolean | null>(null); // null = 판단 전
+  const [poke, setPoke] = useState(0);
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const bump = () => setRefresh((k) => k + 1);
+  // 테스트 이벤트 발생 시: 대시보드 갱신 + 채팅이 반응하도록 poke
+  const onEvent = () => {
+    setRefresh((k) => k + 1);
+    setPoke((k) => k + 1);
+  };
 
   useEffect(() => {
     setOnboarded(localStorage.getItem(ONBOARD_KEY) === "1");
   }, []);
 
-  if (onboarded === null) return null; // localStorage 읽기 전 깜빡임 방지
+  if (onboarded === null) return null;
 
   if (!onboarded) {
     return (
@@ -25,7 +31,7 @@ export default function Home() {
         onDone={() => {
           localStorage.setItem(ONBOARD_KEY, "1");
           setOnboarded(true);
-          bump(); // 예산이 바뀌었을 수 있으니 대시보드 갱신
+          bump();
         }}
       />
     );
@@ -35,8 +41,8 @@ export default function Home() {
     <main className="max-w-phone mx-auto min-h-screen flex flex-col bg-[#f4f4f7]">
       <DashboardView refreshKey={refresh} />
       <div className="px-3.5 pb-2 flex flex-col gap-3 flex-1">
-        <IngestPanel onAdded={bump} />
-        <Chat onResolved={bump} />
+        <TestPanel onEvent={onEvent} />
+        <Chat onResolved={bump} pokeKey={poke} />
       </div>
     </main>
   );

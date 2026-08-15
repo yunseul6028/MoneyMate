@@ -25,13 +25,21 @@ const QUICK = [
 const tagFor = (kind: string): string | undefined =>
   kind === "coach" ? "맥락 이해 완료" : kind === "simulation" ? "가상 시뮬레이션" : undefined;
 
-export default function Chat({ onResolved }: { onResolved?: () => void }) {
+export default function Chat({
+  onResolved,
+  pokeKey = 0,
+}: {
+  onResolved?: () => void;
+  pokeKey?: number;
+}) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [cats, setCats] = useState<string[]>([]);
   const queue = useRef<TransferTx[]>([]);       // 개별 거래 큐
   const resolved = useRef<Set<string>>(new Set()); // 이번 세션에 이미 정리한 사람
+  const seenIds = useRef<Set<number>>(new Set()); // 이미 큐에 넣은 거래
+  const pendingAsk = useRef(false);             // 현재 질문 대기 중인지
   const endRef = useRef<HTMLDivElement>(null);
   const didInit = useRef(false);
   const composing = useRef(false); // 한글 IME 조합 중 여부
@@ -59,16 +67,33 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
       setBusy(false);
       try {
         const t = await getTransfers();
-        queue.current = t.queue;
         if (t.queue.length) {
           const people = new Set(t.queue.map((x) => x.person)).size;
           push({ who: "ai", text: `아 맞다, 처음 보는 송금이 좀 있던데(${people}명) 하나씩만 확인해도 돼? 🙏` });
-          askNext();
+          queueTransfers(t.queue);
         }
       } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 테스트 이벤트(poke) → AI가 방금 발생한 상황에 반응 + 새 송금 있으면 이어서 확인
+  useEffect(() => {
+    if (pokeKey === 0) return; // 최초 마운트는 위 init 이 처리
+    (async () => {
+      setBusy(true);
+      try {
+        const r = await getProactive();
+        if (r.should_speak) push({ who: "ai", text: r.message, tag: "방금 이벤트 반응" });
+      } catch {}
+      setBusy(false);
+      try {
+        const t = await getTransfers();
+        queueTransfers(t.queue);
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pokeKey]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,10 +113,26 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
     let tx = queue.current.shift();
     while (tx && resolved.current.has(tx.person)) tx = queue.current.shift(); // 이미 정리한 사람 건너뜀
     if (!tx) {
-      push({ who: "ai", text: "좋아, 송금들 이제 다 정리했다! 앞으로 알아서 분류해둘게 👍" });
+      if (pendingAsk.current)
+        push({ who: "ai", text: "좋아, 송금들 이제 다 정리했다! 앞으로 알아서 분류해둘게 👍" });
+      pendingAsk.current = false;
       return;
     }
+    pendingAsk.current = true;
     push({ who: "ai", text: txLine(tx), action: { tx, mode: "ask" } });
+  }
+
+  // 새 송금 거래를 큐에 넣고, 대기 중인 질문이 없으면 물어보기 시작
+  function queueTransfers(list: TransferTx[]) {
+    let added = 0;
+    for (const tx of list) {
+      if (seenIds.current.has(tx.id)) continue;
+      seenIds.current.add(tx.id);
+      if (resolved.current.has(tx.person)) continue;
+      queue.current.push(tx);
+      added++;
+    }
+    if (added && !pendingAsk.current) askNext();
   }
 
   async function onFriend(idx: number, tx: TransferTx) {
@@ -104,7 +145,7 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
       onResolved?.();
     } catch {}
     setBusy(false);
-    push({ who: "ai", text: `오케이! ${tx.person}는 친구로 기억할게 🧠 이 사람 송금은 앞으로 식음료로 정리해둘게.` });
+    push({ who: "ai", text: `오케이! ${tx.person}랑은 식음료로 정리해둘게 🍚` });
     askNext();
   }
 
@@ -124,7 +165,7 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
       onResolved?.();
     } catch {}
     setBusy(false);
-    push({ who: "ai", text: `알겠어, 이번 건만 '${cat}'에 넣어둘게 👍 (기억은 안 할게)` });
+    push({ who: "ai", text: `알겠어, 이번 건은 '${cat}'에 넣어둘게 👍` });
     askNext();
   }
 

@@ -23,7 +23,7 @@ from app.agents.proactive import decide
 from app.core import categories as C
 from app.core import clock
 from app.db.database import init_db, session_scope
-from app.db.models import Transaction, User, UserProfile
+from app.db.models import AgentEvent, PersonRule, Transaction, User, UserProfile
 from app.llm.factory import get_llm
 from app.providers.mock_provider import MockFinancialDataProvider
 from app.services.analysis import analyze
@@ -98,6 +98,60 @@ class ResolveIn(BaseModel):
     person: str
     kind: str  # friend | other
     category: str = "식음료"
+
+
+class DevEventIn(BaseModel):
+    kind: str
+
+
+# 목업 테스트용 프리셋: (가맹점, 금액, 카테고리, tx_type, 결제수단, 방향, 메모)
+_DEV_PRESETS: dict[str, tuple] = {
+    "cafe": ("메가커피", 4_500, "카페", "expense", "check", "out", None),
+    "delivery": ("배달의민족", 21_000, "식음료", "expense", "credit", "out", "배달"),
+    "shopping": ("무신사", 120_000, "쇼핑", "expense", "credit", "out", None),
+    "friend_in": ("테*트", 30_000, "기타", "transfer", "transfer", "in", "받음"),
+}
+
+
+@app.post("/api/dev/event")
+def dev_event(inp: DevEventIn) -> dict:
+    """테스트용 이벤트 발생 — mock 거래를 즉석 주입해서 앱 반응 확인."""
+    from datetime import timedelta
+
+    today = clock.today()
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+
+        def add(m, a, c, tt, pm, d, memo, when=today):
+            s.add(Transaction(
+                user_id=uid, tx_date=when, merchant=m, amount=a, category=c,
+                tx_type=tt, payment_method=pm, direction=d,
+                category_source="seed", memo=memo,
+            ))
+
+        if inp.kind == "delivery_spike":
+            for i in range(5):  # 최근 5일 배달 폭증 → proactive 트리거
+                add("배달의민족", 20_000 + i * 1_000, "식음료", "expense",
+                    "credit", "out", "배달", today - timedelta(days=i))
+        elif inp.kind in _DEV_PRESETS:
+            add(*_DEV_PRESETS[inp.kind])
+        else:
+            return {"ok": False, "error": "unknown_kind"}
+        s.flush()
+    return {"ok": True, "kind": inp.kind}
+
+
+@app.post("/api/dev/reset")
+def dev_reset() -> dict:
+    """데모 데이터로 초기화 (거래·사람규칙·에이전트기록 삭제 후 재시드)."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        s.query(Transaction).filter_by(user_id=uid).delete()
+        s.query(PersonRule).filter_by(user_id=uid).delete()
+        s.query(AgentEvent).filter_by(user_id=uid).delete()
+        s.flush()
+        MockFinancialDataProvider().sync_transactions(s, uid)
+    return {"ok": True}
 
 
 @app.get("/")
@@ -205,7 +259,11 @@ def categorize_transfer(tx_id: int, inp: CorrectIn) -> dict:
 
 @app.post("/api/ingest")
 def ingest(inp: IngestIn) -> dict:
-    """카드 결제 내역 텍스트를 받아 각 줄을 자동 분류·저장."""
+    """카드 결제 내역 텍스트를 받아 각 줄을 자동 분류·저장.
+
+    (프론트 수동 입력 UI 는 제거됨. 이 엔드포인트+분류기는 유지 —
+     나중에 실제 카드/은행 API(RealFinancialDataProvider)나 파일 업로드를
+     여기에 연결하면 됨. 자동 분류·개인화 파이프라인은 그대로 재사용.)"""
     llm = get_llm()
     with session_scope() as s:
         uid = _demo_user_id(s)

@@ -115,6 +115,11 @@ export const resolvePerson = (person: string, kind: string, category: string) =>
 export const categorizeTransfer = (id: number, category: string) =>
   jpost<{ ok: boolean; category: string }>(`/api/transfers/${id}/categorize`, { category });
 
+// 목업 테스트용 이벤트 주입 / 초기화
+export const devEvent = (kind: string) =>
+  jpost<{ ok: boolean; kind: string }>("/api/dev/event", { kind });
+export const devReset = () => jpost<{ ok: boolean }>("/api/dev/reset", {});
+
 export async function updateProfile(name: string, monthly_budget: number) {
   const r = await fetch("/api/profile", {
     method: "PATCH",
