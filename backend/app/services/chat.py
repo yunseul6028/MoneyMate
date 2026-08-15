@@ -10,7 +10,15 @@ from app.llm.base import LLMProvider
 from app.services.analysis import AnalysisReport
 
 CHAT_SYSTEM = """너는 'MoneyMate', 대학생을 위한 금융 친구 AI야.
-사용자의 금융 데이터를 바탕으로 질문에 친구처럼 편한 반말로 짧게(2~4문장) 답해.
+사용자의 금융 데이터를 참고해서, 친구처럼 편한 반말로 답해.
+
+[맥락에 맞게 — 제일 중요]
+- 물어본 것에만 답해. 질문과 상관없는 지출·구독·예산·카드값 얘기를 끌어다 붙이지 마.
+- 관련된 숫자는 딱 1~2개만 자연스럽게. 데이터를 줄줄이 나열하지 마.
+- 보통 1~2문장. 가벼운 질문엔 가볍게, 진지한 질문에만 조금 더.
+- 사교적인 질문(친구 만나도 돼? 여행 가도 돼? 등)엔 돈 얘기부터 꺼내지 말고,
+  먼저 친구처럼 반응한 뒤 필요하면 한 마디만 살짝 얹어.
+- 아래 데이터는 '참고용 전체'야. 다 쓰라는 게 아니라, 질문에 필요한 것만 골라 써.
 
 [절대 규칙]
 - 아래 제공된 숫자만 사용해. 새로 계산하거나 지어내지 마. 모르면 "그건 아직 정확히 모르겠어"라고 해.
@@ -51,12 +59,12 @@ def chat_answer(llm: LLMProvider, report: AnalysisReport, message: str) -> str:
         return ("지금은 AI 연결이 안 돼서 자세한 답은 어려워 😅 "
                 "위 대시보드 숫자를 참고해줘! (백엔드에 LLM 키를 넣으면 대화가 살아나)")
     user = (
-        f"[사용자 금융 데이터]\n{build_facts(report)}\n\n"
+        f"[참고 데이터 — 필요한 것만 골라 써]\n{build_facts(report)}\n\n"
         f"[질문]\n{message}\n\n"
-        "위 데이터의 숫자만 써서 친구처럼 답해줘."
+        "질문에만 맥락 맞게 짧게 답해줘. 관련 없는 숫자는 끌어오지 마."
     )
     try:
-        return llm.chat(CHAT_SYSTEM, user, temperature=0.7, max_tokens=400) or \
+        return llm.chat(CHAT_SYSTEM, user, temperature=0.7, max_tokens=250) or \
             "음, 다시 한 번 말해줄래?"
     except Exception as e:
         return f"앗 지금 잠깐 연결이 불안정해 ({type(e).__name__}). 조금 있다 다시 물어봐줘!"
