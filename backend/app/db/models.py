@@ -91,7 +91,7 @@ class Transaction(Base):
     category: Mapped[str] = mapped_column(String(40), nullable=False)
     tx_type: Mapped[str] = mapped_column(String(10), default="expense")  # expense | income | transfer
     payment_method: Mapped[str] = mapped_column(String(20), default="check")
-    # 돈의 방향: out(나감) | in(들어옴). 송금 정산(N빵) 계산에 사용.
+    # 돈의 방향: out(나감) | in(들어옴). 송금 정산 계산에 사용.
     direction: Mapped[str] = mapped_column(String(4), default="out")
 
     # 분류 출처: rule | user | llm | seed — 개인화/디버깅용
@@ -134,8 +134,8 @@ class MerchantRule(Base):
 class PersonRule(Base):
     """송금 상대(사람) → 관계·카테고리 기억.
 
-    처음 본 사람은 unresolved. 사용자가 '친구 N빵'/'다른 용도'로 답하면 저장.
-      kind: friend(N빵 정산) | other(중고거래 등)
+    처음 본 사람은 unresolved. 사용자가 '친구 정산'/'다른 용도'로 답하면 저장.
+      kind: friend(정산) | other(중고거래 등)
       category: friend→식음료(기본), other→사용자가 고른 카테고리
     이후 같은 사람 송금은 자동으로 이 카테고리로 처리(정산 netting 포함).
     """

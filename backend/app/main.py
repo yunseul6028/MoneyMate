@@ -177,7 +177,7 @@ def transfers() -> dict:
 
 @app.post("/api/persons/resolve")
 def resolve_person(inp: ResolveIn) -> dict:
-    """사람 분류 저장(친구 N빵→식음료 / 아니면 지정 카테고리). 이후 자동 반영."""
+    """사람 분류 저장(친구 정산→식음료 / 아니면 지정 카테고리). 이후 자동 반영."""
     if inp.category not in C.EXPENSE_CATEGORIES:
         return {"ok": False, "error": "unknown_category"}
     with session_scope() as s:
@@ -185,6 +185,22 @@ def resolve_person(inp: ResolveIn) -> dict:
         rule = transfers_svc.resolve(s, uid, inp.person, inp.kind, inp.category)
         return {"ok": True, "person": rule.person_key,
                 "kind": rule.kind, "category": rule.category}
+
+
+@app.post("/api/transfers/{tx_id}/categorize")
+def categorize_transfer(tx_id: int, inp: CorrectIn) -> dict:
+    """송금 건 하나만 일회성으로 분류(사람 규칙은 안 남김). 친구 정산만 기억한다."""
+    if inp.category not in C.EXPENSE_CATEGORIES:
+        return {"ok": False, "error": "unknown_category"}
+    with session_scope() as s:
+        tx = s.get(Transaction, tx_id)
+        if tx is None:
+            return {"ok": False, "error": "not_found"}
+        tx.category = inp.category
+        # 이 거래만 소비/소득으로 편입 (보냄→지출, 받음→소득). PersonRule 은 만들지 않음.
+        tx.tx_type = "expense" if tx.direction == "out" else "income"
+        tx.category_source = "user"
+        return {"ok": True, "category": inp.category}
 
 
 @app.post("/api/ingest")

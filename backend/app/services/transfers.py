@@ -1,8 +1,8 @@
-"""송금 상대(사람) 분류 + N빵 정산 (STEP: 친구 송금).
+"""송금 상대(사람) 분류 + 정산 (STEP: 친구 송금).
 
 흐름
   - 사람 송금(masked 이름, tx_type=transfer)에서 처음 본 사람 → 사용자에게 물어봄.
-  - '친구 N빵' → PersonRule(kind=friend, category=식음료) 저장 → 이후 자동 식음료.
+  - '친구 정산' → PersonRule(kind=friend, category=식음료) 저장 → 이후 자동 식음료.
   - '친구 아님' → 사용자가 고른 카테고리로 저장.
   - 정산 netting: 같은 카테고리에서 (보낸 돈) − (받은 돈) 만 내 지출로 남김
     → "내가 다 긁고 친구가 입금하면 내 몫만 지출".
@@ -82,6 +82,7 @@ def unresolved_tx_queue(session: Session, user_id: int) -> list[dict]:
         if k in rules:
             continue
         out.append({
+            "id": t.id,
             "person": k,
             "date": t.tx_date.isoformat(),
             "amount": round(t.amount),

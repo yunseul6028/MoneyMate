@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  categorizeTransfer,
   getCategories,
   getProactive,
   getTransfers,
@@ -79,7 +80,7 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
       tx.direction === "out"
         ? `${tx.person}한테 ${won(tx.amount)} 보냈`
         : `${tx.person}한테서 ${won(tx.amount)} 받았`;
-    return `${when}에 ${body}네. 이거 친구랑 N빵한 거야? 🤔`;
+    return `${when}에 ${body}네. 이거 친구랑 정산한 거야? 🤔`;
   }
 
   function askNext() {
@@ -94,7 +95,7 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
 
   async function onFriend(idx: number, tx: TransferTx) {
     clearAction(idx);
-    push({ who: "user", text: "응, 친구 N빵이야" });
+    push({ who: "user", text: "응, 친구랑 정산한 거야" });
     resolved.current.add(tx.person);
     setBusy(true);
     try {
@@ -109,20 +110,20 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
   function onNotFriend(idx: number, tx: TransferTx) {
     clearAction(idx);
     push({ who: "user", text: "아니, 다른 거야" });
-    push({ who: "ai", text: `그렇구나! 그럼 ${tx.person}랑 오간 건 어디에 넣을까?`, action: { tx, mode: "pick" } });
+    push({ who: "ai", text: "그렇구나! 그럼 이건 어디에 넣을까?", action: { tx, mode: "pick" } });
   }
 
+  // 일회성: 이 건만 분류하고 사람은 기억하지 않음 (친구 정산만 기억)
   async function onPick(idx: number, tx: TransferTx, cat: string) {
     clearAction(idx);
     push({ who: "user", text: cat });
-    resolved.current.add(tx.person);
     setBusy(true);
     try {
-      await resolvePerson(tx.person, "other", cat);
+      await categorizeTransfer(tx.id, cat);
       onResolved?.();
     } catch {}
     setBusy(false);
-    push({ who: "ai", text: `알겠어, ${tx.person}는 '${cat}'로 기억할게 🧠` });
+    push({ who: "ai", text: `알겠어, 이번 건만 '${cat}'에 넣어둘게 👍 (기억은 안 할게)` });
     askNext();
   }
 
@@ -177,7 +178,7 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
                   onClick={() => onFriend(i, m.action!.tx)}
                   className="flex-1 bg-brand text-white text-[13px] font-bold rounded-xl py-2 disabled:opacity-50"
                 >
-                  응, 친구 N빵 🍚
+                  응, 친구랑 정산 🤝
                 </button>
                 <button
                   disabled={busy}

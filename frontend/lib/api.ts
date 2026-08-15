@@ -91,6 +91,7 @@ export type PersonAgg = {
   category?: string;
 };
 export type TransferTx = {
+  id: number;
   person: string;
   date: string;
   amount: number;
@@ -104,11 +105,15 @@ export type TransfersResp = {
 };
 
 export const getTransfers = () => jget<TransfersResp>("/api/transfers");
+// 친구 정산 → 사람 기억(PersonRule 저장)
 export const resolvePerson = (person: string, kind: string, category: string) =>
   jpost<{ ok: boolean; person: string; kind: string; category: string }>(
     "/api/persons/resolve",
     { person, kind, category }
   );
+// 친구 아님 → 이 거래 한 건만 일회성 분류(기억 안 함)
+export const categorizeTransfer = (id: number, category: string) =>
+  jpost<{ ok: boolean; category: string }>(`/api/transfers/${id}/categorize`, { category });
 
 export async function updateProfile(name: string, monthly_budget: number) {
   const r = await fetch("/api/profile", {
