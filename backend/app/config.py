@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # --- 앱의 '오늘' (날짜 감각의 단일 소스) ---
     # live_date=False: demo_today 로 고정(데모·재현성). True: 실제 date.today() 사용.
     # 앱 전역은 settings 를 직접 보지 말고 app.core.clock 의 today()/now() 를 쓴다.
-    demo_today: date = date(2026, 8, 13)
+    demo_today: date = date(2026, 8, 15)
     live_date: bool = False
 
 

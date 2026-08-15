@@ -11,9 +11,24 @@ from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.data.merchant_rules import GLOBAL_MERCHANT_RULES
-from app.data.mock_data import generate_mock_ledger
 from app.db.models import MerchantRule, Transaction, User, UserProfile
 from app.providers.base import FinancialDataProvider
+
+
+def _load_ledger(today: date) -> dict:
+    """데모 원장 로드.
+
+    app/data/demo_ledger.py(실 은행 내역 기반, git 미포함)가 있으면 그것을,
+    없으면(예: 클론 직후) 합성 mock 데이터를 사용한다. → 데이터 없이도 앱이 돈다.
+    """
+    try:
+        from app.data.demo_ledger import load_demo_ledger
+
+        return load_demo_ledger()
+    except ImportError:
+        from app.data.mock_data import generate_mock_ledger
+
+        return generate_mock_ledger(today)
 
 
 class MockFinancialDataProvider(FinancialDataProvider):
@@ -40,7 +55,7 @@ class MockFinancialDataProvider(FinancialDataProvider):
         user = session.query(User).order_by(User.id.asc()).first()
         if user:
             return user
-        ledger = generate_mock_ledger(self.today)
+        ledger = _load_ledger(self.today)
         p = ledger["profile"]
         user = User(name=p["name"])
         session.add(user)
@@ -62,7 +77,7 @@ class MockFinancialDataProvider(FinancialDataProvider):
         )
         if already:
             return 0
-        ledger = generate_mock_ledger(self.today)
+        ledger = _load_ledger(self.today)
         added = 0
         for t in ledger["transactions"]:
             session.add(Transaction(
