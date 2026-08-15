@@ -88,6 +88,7 @@ class MockFinancialDataProvider(FinancialDataProvider):
                 category=t.category,
                 tx_type=t.tx_type,
                 payment_method=t.payment_method,
+                direction=getattr(t, "direction", "out"),
                 category_source="seed",
                 memo=t.memo,
             ))

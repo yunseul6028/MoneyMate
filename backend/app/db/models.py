@@ -89,8 +89,10 @@ class Transaction(Base):
     merchant: Mapped[str] = mapped_column(String(200), nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)  # 항상 양수
     category: Mapped[str] = mapped_column(String(40), nullable=False)
-    tx_type: Mapped[str] = mapped_column(String(10), default="expense")  # expense | income
+    tx_type: Mapped[str] = mapped_column(String(10), default="expense")  # expense | income | transfer
     payment_method: Mapped[str] = mapped_column(String(20), default="check")
+    # 돈의 방향: out(나감) | in(들어옴). 송금 정산(N빵) 계산에 사용.
+    direction: Mapped[str] = mapped_column(String(4), default="out")
 
     # 분류 출처: rule | user | llm | seed — 개인화/디버깅용
     category_source: Mapped[str] = mapped_column(String(10), default="rule")
@@ -126,6 +128,29 @@ class MerchantRule(Base):
 
     __table_args__ = (
         UniqueConstraint("merchant_key", "user_id", name="uq_merchant_user"),
+    )
+
+
+class PersonRule(Base):
+    """송금 상대(사람) → 관계·카테고리 기억.
+
+    처음 본 사람은 unresolved. 사용자가 '친구 N빵'/'다른 용도'로 답하면 저장.
+      kind: friend(N빵 정산) | other(중고거래 등)
+      category: friend→식음료(기본), other→사용자가 고른 카테고리
+    이후 같은 사람 송금은 자동으로 이 카테고리로 처리(정산 netting 포함).
+    """
+
+    __tablename__ = "person_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    person_key: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="friend")  # friend | other
+    category: Mapped[str] = mapped_column(String(40), default="식음료")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "person_key", name="uq_person_user"),
     )
 
 

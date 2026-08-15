@@ -98,6 +98,7 @@ class AnalysisReport:
     large_one_time: list[dict] = field(default_factory=list)           # 일회성 대형
     delivery_week: float = 0.0           # 최근 7일 배달 지출
     delivery_baseline_week_avg: float = 0.0
+    settlement: dict = field(default_factory=dict)  # 친구 송금 정산 요약
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -202,6 +203,12 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
     lm_first = add_months(first, -1)
     lm_same_day = add_months(today, -1)
     last_month_expense = _sum(_expenses_in(txs, lm_first, lm_same_day))
+    # 정산 netting: 친구 송금(보냄−받음)을 실지출에 반영 → "내 몫만 지출"
+    from app.services.transfers import settlement_netting
+    net_now = settlement_netting(session, user_id, first, today)
+    net_lm = settlement_netting(session, user_id, lm_first, lm_same_day)
+    month_expense = max(0.0, month_expense + sum(net_now.values()))
+    last_month_expense = max(0.0, last_month_expense + sum(net_lm.values()))
     month_change_rate = _rate(month_expense, last_month_expense)
     last_month_income = _sum([
         t for t in txs if t.tx_type == C.INCOME and lm_first <= t.tx_date <= lm_same_day
@@ -212,14 +219,38 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
     week_expense, avg_weekly, _prev = _weekly_windows(txs, today)
     week_increase_rate = _rate(week_expense, avg_weekly)
 
-    # 예산/전망 + 카드
+    # 예산/전망 + 카드 (정산 반영된 month_expense 사용)
     bs = budget_status(txs, today, budget)
+    days_elapsed, days_in_month = bs["days_elapsed"], bs["days_in_month"]
+    remaining_budget = budget - month_expense
+    _daily = month_expense / days_elapsed if days_elapsed else 0.0
+    projected_month = round(_daily * days_in_month)
+    projected_remaining = round(budget - projected_month)
     card_bill, next_billing = card_bill_forecast(txs, today, billing_day)
 
-    # 카테고리별
+    # 카테고리별 (정산 netting 반영: 친구 송금 보냄+ / 받음−)
     cat_month: dict[str, float] = defaultdict(float)
     for t in month_exps:
         cat_month[t.category] += t.amount
+    for c, delta in net_now.items():
+        cat_month[c] = max(0.0, cat_month.get(c, 0.0) + delta)
+
+    # 송금 정산 요약(이번 달) + 미해결 사람 수
+    from app.services.transfers import get_rules, person_key, person_transfers
+    _rules = get_rules(session, user_id)
+    _sent = _recv = 0.0
+    _unresolved: set[str] = set()
+    for t in person_transfers(session, user_id):
+        k = person_key(t.merchant)
+        if k not in _rules:
+            _unresolved.add(k)
+        elif first <= t.tx_date <= today:
+            if t.direction == "out":
+                _sent += t.amount
+            else:
+                _recv += t.amount
+    settlement = {"sent": round(_sent), "received": round(_recv),
+                  "net": round(_sent - _recv), "unresolved": len(_unresolved)}
 
     def cat_window(cat: str, k: int) -> float:
         end = today - timedelta(days=7 * k)
@@ -296,11 +327,11 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
         avg_weekly_expense=round(avg_weekly),
         week_increase_rate=week_increase_rate,
         monthly_budget=round(budget),
-        remaining_budget=round(bs["remaining_budget"]),
-        days_elapsed=bs["days_elapsed"],
-        days_in_month=bs["days_in_month"],
-        projected_month_expense=bs["projected_month_expense"],
-        projected_remaining_budget=bs["projected_remaining_budget"],
+        remaining_budget=round(remaining_budget),
+        days_elapsed=days_elapsed,
+        days_in_month=days_in_month,
+        projected_month_expense=projected_month,
+        projected_remaining_budget=projected_remaining,
         upcoming_card_bill=round(card_bill),
         next_billing_date=next_billing,
         categories=categories,
@@ -310,4 +341,5 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
         large_one_time=large,
         delivery_week=round(delivery_week),
         delivery_baseline_week_avg=round(delivery_base),
+        settlement=settlement,
     )

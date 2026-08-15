@@ -29,6 +29,7 @@ from app.providers.mock_provider import MockFinancialDataProvider
 from app.services.analysis import analyze
 from app.services.chat import chat_answer
 from app.services.classifier import record_correction
+from app.services import transfers as transfers_svc
 from app.services.dashboard import build_dashboard
 from app.services.ingest import ingest_transactions
 from app.services.simulation import (
@@ -93,6 +94,12 @@ class ProfileIn(BaseModel):
     monthly_budget: int | None = None
 
 
+class ResolveIn(BaseModel):
+    person: str
+    kind: str  # friend | other
+    category: str = "식음료"
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
@@ -155,6 +162,29 @@ def update_profile(inp: ProfileIn) -> dict:
         if inp.monthly_budget and inp.monthly_budget > 0:
             p.monthly_budget = inp.monthly_budget
         return {"ok": True, "name": u.name, "monthly_budget": p.monthly_budget}
+
+
+@app.get("/api/transfers")
+def transfers() -> dict:
+    """사람 송금 요약 + 미해결(처음 본 사람) 목록 + 정산 요약."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        summ = transfers_svc.summarize(s, uid)
+        summ["settlement"] = analyze(s, uid, clock.today()).settlement
+        summ["queue"] = transfers_svc.unresolved_tx_queue(s, uid)
+        return summ
+
+
+@app.post("/api/persons/resolve")
+def resolve_person(inp: ResolveIn) -> dict:
+    """사람 분류 저장(친구 N빵→식음료 / 아니면 지정 카테고리). 이후 자동 반영."""
+    if inp.category not in C.EXPENSE_CATEGORIES:
+        return {"ok": False, "error": "unknown_category"}
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        rule = transfers_svc.resolve(s, uid, inp.person, inp.kind, inp.category)
+        return {"ok": True, "person": rule.person_key,
+                "kind": rule.kind, "category": rule.category}
 
 
 @app.post("/api/ingest")

@@ -36,7 +36,7 @@ export default function Home() {
       <DashboardView refreshKey={refresh} />
       <div className="px-3.5 pb-2 flex flex-col gap-3 flex-1">
         <IngestPanel onAdded={bump} />
-        <Chat />
+        <Chat onResolved={bump} />
       </div>
     </main>
   );

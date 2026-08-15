@@ -81,6 +81,35 @@ export type Profile = {
 
 export const getProfile = () => jget<Profile>("/api/profile");
 
+export type PersonAgg = {
+  person: string;
+  sent: number;
+  received: number;
+  net: number;
+  count: number;
+  kind?: string;
+  category?: string;
+};
+export type TransferTx = {
+  person: string;
+  date: string;
+  amount: number;
+  direction: "in" | "out";
+};
+export type TransfersResp = {
+  resolved: PersonAgg[];
+  unresolved: PersonAgg[];
+  queue: TransferTx[];
+  settlement: { sent: number; received: number; net: number; unresolved: number };
+};
+
+export const getTransfers = () => jget<TransfersResp>("/api/transfers");
+export const resolvePerson = (person: string, kind: string, category: string) =>
+  jpost<{ ok: boolean; person: string; kind: string; category: string }>(
+    "/api/persons/resolve",
+    { person, kind, category }
+  );
+
 export async function updateProfile(name: string, monthly_budget: number) {
   const r = await fetch("/api/profile", {
     method: "PATCH",
