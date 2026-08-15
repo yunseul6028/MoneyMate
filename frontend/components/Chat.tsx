@@ -34,6 +34,7 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
   const resolved = useRef<Set<string>>(new Set()); // 이번 세션에 이미 정리한 사람
   const endRef = useRef<HTMLDivElement>(null);
   const didInit = useRef(false);
+  const composing = useRef(false); // 한글 IME 조합 중 여부
 
   const push = (m: Msg) => setMsgs((prev) => [...prev, m]);
   const clearAction = (idx: number) =>
@@ -230,7 +231,15 @@ export default function Chat({ onResolved }: { onResolved?: () => void }) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send(input)}
+          onCompositionStart={() => (composing.current = true)}
+          onCompositionEnd={() => (composing.current = false)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            // 한글 IME 조합 중 Enter는 '글자 확정'이지 '전송'이 아님 → 3중 가드로 무시
+            if (e.nativeEvent.isComposing || composing.current || e.keyCode === 229) return;
+            e.preventDefault();
+            send(input);
+          }}
           placeholder="금융 관련 뭐든 물어봐…"
           className="flex-1 border border-line rounded-full px-4 py-3 text-sm outline-none bg-white focus:border-brand2"
         />

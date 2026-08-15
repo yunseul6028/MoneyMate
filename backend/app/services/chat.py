@@ -26,6 +26,11 @@ CHAT_SYSTEM = """너는 'MoneyMate', 대학생을 위한 금융 친구 AI야.
 - 투자/대출/신용점수 확정 조언 금지.
 - 은행 앱처럼 딱딱하게 말하지 마. 이모지는 최대 1개.
 
+[어느 기간 숫자를 쓸까 — 중요]
+- "커피 한 잔 더?", "배달 시킬까?", "오늘·이번 주" 같은 즉흥·단기 판단엔 '이번 주(최근 7일)' 숫자를 써.
+- "이번 달 얼마 썼어?", 한 달 정리·예산 같은 큰 그림 질문엔 '이번 달' 숫자를 써.
+- 즉흥적인 소비에 월 누적을 들이대지 마(예: 커피 한 잔에 '이번 달 카페 3만원' X → '이번 주 카페 N원' O).
+
 [비용의 시간 단위 — 중요]
 - 구독은 매달 고정으로 빠져나가는 '고정비'야. "이번 주에 구독을 줄이자"처럼 주 단위로 말하지 마.
   구독 점검은 "다음 결제 전에 안 쓰는 거 한 번 정리해볼까?"처럼 월 단위 관점으로 얘기해.
@@ -39,16 +44,20 @@ CHAT_SYSTEM = """너는 'MoneyMate', 대학생을 위한 금융 친구 AI야.
 def build_facts(report: AnalysisReport) -> str:
     r = report
     cats = ", ".join(f"{c.category} {won(c.month_amount)}" for c in r.categories)
+    cats_week = ", ".join(
+        f"{c.category} {won(c.week_amount)}" for c in r.categories if c.week_amount > 0
+    ) or "거의 없음"
     subs = ", ".join(f"{s['merchant']}({won(s['amount'])})" for s in r.subscriptions)
     return "\n".join([
         f"- 오늘: {r.today}",
         f"- 이번 달 총 지출: {won(r.month_expense)} (지난달 동기간 {won(r.last_month_expense)})",
         f"- 이번 달 소득: {won(r.month_income)} (지난달 동기간 {won(r.last_month_income)})",
-        f"- 이번 주 지출: {won(r.week_expense)} (평소 주 {won(r.avg_weekly_expense)})",
+        f"- 이번 주(최근7일) 지출: {won(r.week_expense)} (평소 주 {won(r.avg_weekly_expense)})",
         f"- 월 예산: {won(r.monthly_budget)} / 남은 예산: {won(r.remaining_budget)}",
         f"- 이 페이스 예상 월지출: {won(r.projected_month_expense)}",
         f"- 다음 카드 결제 예정: {won(r.upcoming_card_bill)} ({r.next_billing_date})",
         f"- 카테고리별 이번 달: {cats}",
+        f"- 카테고리별 이번 주(최근7일): {cats_week}",
         f"- 구독 {len(r.subscriptions)}개: {subs}",
         f"- 배달: 이번주 {won(r.delivery_week)} (평소 {won(r.delivery_baseline_week_avg)})",
     ])
