@@ -1,3 +1,12 @@
 node_modules
 .next
+.venv
+__pycache__
+*.pyc
+*.db
+.env
 .env*.local
+# 개인 금융 데이터(실 은행내역 기반) — 배포엔 올리지 않음(합성 데이터로 폴백)
+server/data/demo_ledger.py
+# 로컬 검증 스크립트(배포 불필요)
+server/scripts

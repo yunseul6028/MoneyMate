@@ -2,17 +2,17 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "moneymate",
-      "runtimeExecutable": "/Users/yunji/Claude/MoneyMate/backend/.venv/bin/uvicorn",
+      "name": "moneymate-api",
+      "runtimeExecutable": "/Users/yunji/Claude/MoneyMate/frontend/.venv/bin/uvicorn",
       "runtimeArgs": [
-        "app.main:app",
+        "server.main:app",
         "--port",
         "8000",
         "--app-dir",
-        "/Users/yunji/Claude/MoneyMate/backend",
+        "/Users/yunji/Claude/MoneyMate/frontend",
         "--reload",
         "--reload-dir",
-        "/Users/yunji/Claude/MoneyMate/backend/app"
+        "/Users/yunji/Claude/MoneyMate/frontend/server"
       ],
       "port": 8000
     },

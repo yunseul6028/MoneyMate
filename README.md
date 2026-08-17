@@ -45,29 +45,36 @@ Chat + Tools / Simulation Engine
 - [x] STEP 12. "먼저 말을 거는" UX (Proactive 메시지 + 맥락 이해)
 - [x] STEP 13. 가상 소비 시뮬레이션 ("20만원 기타 사도 될까?")
 
-## 빠른 시작
+## 구조 (단일 프로젝트)
 
-**백엔드** (FastAPI, :8000)
-```bash
-cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # LLM 키는 .env 에 (없어도 mock 으로 동작)
-uvicorn app.main:app --port 8000
+Next.js 프론트 + FastAPI 백엔드가 **한 프로젝트(`frontend/`)**에 통합돼 있다.
+`/api/*` 는 Next.js rewrite 로 같은 프로젝트의 Python 서버리스 함수(`frontend/api/index.py` → `server/`)가 처리한다.
+```
+frontend/
+├─ app/ components/ lib/   Next.js
+├─ api/index.py            Vercel Python 진입점 (server.main:app)
+├─ server/                 FastAPI (분석·Agent·LLM·정산 등)
+└─ requirements.txt
 ```
 
-**프론트엔드** (Next.js, :3000 — `/api` 는 :8000 으로 프록시)
+## 빠른 시작 (모두 frontend/ 에서)
 ```bash
 cd frontend
-npm install
-npm run dev                   # http://localhost:3000
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+cp .env.example .env                       # LLM 키는 .env 에 (없어도 mock 으로 동작)
+
+# 터미널 1 — API (FastAPI)
+uvicorn server.main:app --port 8000
+# 터미널 2 — 웹 (Next.js). /api 는 :8000 으로 프록시됨
+npm install && npm run dev                 # http://localhost:3000
 ```
 
 **검증 스크립트** (LLM 키 없이도 실행 가능)
 ```bash
-cd backend && source .venv/bin/activate
-python -m app.scripts.seed_and_check    # STEP 5~6
-python -m app.scripts.check_analysis    # STEP 8
-python -m app.scripts.check_agent       # STEP 9
-python -m app.scripts.check_coach       # STEP 10 (LLM)
+cd frontend && source .venv/bin/activate
+python -m server.scripts.seed_and_check    # STEP 5~6
+python -m server.scripts.check_agent       # STEP 9
+python -m server.scripts.check_coach       # STEP 10 (LLM)
 ```
+
+배포는 [DEPLOY.md](DEPLOY.md) 참고 (Vercel 단일 프로젝트).
