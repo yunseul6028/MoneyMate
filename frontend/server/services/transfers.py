@@ -111,13 +111,32 @@ def resolve(session: Session, user_id: int, person: str, kind: str, category: st
     return rule
 
 
-def settlement_netting(session: Session, user_id: int, start, end) -> dict[str, float]:
-    """해결된 사람 송금을 카테고리별 순지출로 환산.
+# 정산 인정 시간창: 받은 정산은 '송금 ±N일 내에 그만한 내 지출'이 있어야 차감 인정
+SETTLEMENT_WINDOW_DAYS = 3
 
-    각 카테고리에 대해 (보낸 합) − (받은 합). 양수면 내 순지출, 음수면 순수령.
-    분석 엔진이 카테고리 소비에 더해준다(음수는 정산으로 차감).
+
+def _has_nearby_expense(expenses: list[Transaction], when, min_amount: float) -> bool:
+    """송금 시점 ±N일 내에 min_amount 이상인 내 지출이 있는지 (정산 근거)."""
+    for e in expenses:
+        if e.amount >= min_amount and abs((e.tx_date - when).days) <= SETTLEMENT_WINDOW_DAYS:
+            return True
+    return False
+
+
+def settlement_netting(session: Session, user_id: int, start, end) -> dict[str, float]:
+    """해결된 사람 송금을 카테고리별 순지출로 환산 (실제 정산만).
+
+    - 보낸 정산(out): 내가 낸 몫 → 그대로 내 지출(+). (친구가 긁은 경우 내 카드엔 지출 없음)
+    - 받은 정산(in): 내가 ±SETTLEMENT_WINDOW_DAYS 일 내에 그만한 금액을 쓴 지출이 있을 때만
+      정산으로 인정해 차감(−). 무관한/한참 지난 입금은 정산으로 치지 않는다.
+    분석 엔진이 이 결과를 카테고리 소비에 더한다(음수는 차감).
     """
     rules = get_rules(session, user_id)
+    expenses = (
+        session.query(Transaction)
+        .filter(Transaction.user_id == user_id, Transaction.tx_type == "expense")
+        .all()
+    )
     net: dict[str, float] = {}
     for t in person_transfers(session, user_id):
         if not (start <= t.tx_date <= end):
@@ -125,6 +144,9 @@ def settlement_netting(session: Session, user_id: int, start, end) -> dict[str, 
         rule = rules.get(person_key(t.merchant))
         if not rule:
             continue
-        sign = 1.0 if t.direction == "out" else -1.0
-        net[rule.category] = net.get(rule.category, 0.0) + sign * t.amount
+        if t.direction == "out":
+            net[rule.category] = net.get(rule.category, 0.0) + t.amount
+        elif _has_nearby_expense(expenses, t.tx_date, t.amount):
+            net[rule.category] = net.get(rule.category, 0.0) - t.amount
+        # else: 근처에 그만한 지출 없음 → 정산 아님(차감하지 않음)
     return net
