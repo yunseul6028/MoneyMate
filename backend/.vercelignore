@@ -1,0 +1,7 @@
+.venv
+__pycache__
+*.pyc
+*.db
+.env
+# 개인 금융 데이터(실 은행내역 기반) — 배포엔 올리지 않음(합성 데이터로 폴백)
+app/data/demo_ledger.py

@@ -18,3 +18,4 @@ attach.html
 
 # OS
 .DS_Store
+.vercel/
