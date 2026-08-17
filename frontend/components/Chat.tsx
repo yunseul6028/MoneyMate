@@ -255,20 +255,22 @@ export default function Chat({
         <div ref={endRef} />
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-1 py-1.5">
-        {QUICK.map((q) => (
-          <button
-            key={q}
-            onClick={() => send(q)}
-            disabled={busy}
-            className="whitespace-nowrap bg-white border border-line text-[#5a5a6e] text-xs font-semibold px-3 py-1.5 rounded-full disabled:opacity-50"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      {/* 하단 고정 바 (빠른질문 + 입력) */}
+      <div className="sticky bottom-0 z-30 bg-[#f4f4f7]">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-1 py-1.5">
+          {QUICK.map((q) => (
+            <button
+              key={q}
+              onClick={() => send(q)}
+              disabled={busy}
+              className="whitespace-nowrap bg-white border border-line text-[#5a5a6e] text-xs font-semibold px-3 py-1.5 rounded-full disabled:opacity-50"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
 
-      <div className="sticky bottom-0 bg-[#f4f4f7] pt-2 pb-4 flex gap-2 border-t border-line">
+        <div className="pt-2 pb-4 flex gap-2 border-t border-line">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -291,6 +293,7 @@ export default function Chat({
         >
           ➤
         </button>
+        </div>
       </div>
     </div>
   );
