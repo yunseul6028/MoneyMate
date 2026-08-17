@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from server.config import settings
 
@@ -17,11 +18,17 @@ class Base(DeclarativeBase):
     pass
 
 
-# SQLite 전용 옵션(check_same_thread)은 sqlite 일 때만 적용.
-_connect_args = (
-    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-)
-engine = create_engine(settings.database_url, connect_args=_connect_args, future=True)
+if settings.database_url.startswith("sqlite"):
+    # SQLite 전용 옵션(check_same_thread).
+    engine = create_engine(
+        settings.database_url, connect_args={"check_same_thread": False}, future=True
+    )
+else:
+    # 관리형 Postgres + 서버리스: 커넥션을 함수 호출 간에 들고 있지 않도록 NullPool,
+    # 끊긴 커넥션 자동 감지 pre_ping.
+    engine = create_engine(
+        settings.database_url, poolclass=NullPool, pool_pre_ping=True, future=True
+    )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

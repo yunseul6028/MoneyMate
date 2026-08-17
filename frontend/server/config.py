@@ -9,17 +9,32 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 어느 디렉토리에서 실행하든 backend/.env 를 찾도록 절대경로 사용.
 _ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
-# Vercel(서버리스)은 cwd 가 읽기전용 → SQLite 는 쓰기 가능한 /tmp 에.
-_DEFAULT_DB = (
-    "sqlite:////tmp/moneymate.db"
-    if os.environ.get("VERCEL")
-    else "sqlite:///./moneymate.db"
-)
+
+def _normalize_db_url(url: str) -> str:
+    """DATABASE_URL 정규화.
+
+    - 빈값이면 Postgres env(POSTGRES_URL 등) → 없으면 SQLite 기본값.
+    - Neon/Vercel/Supabase 는 'postgres://' 로 주지만 SQLAlchemy 2.x 는
+      'postgresql+psycopg://' 스킴이 필요 → 변환. psycopg(v3) 드라이버 사용.
+    - Postgres 인데 sslmode 없으면 require 추가(관리형 DB 는 SSL 필수).
+    """
+    url = url or os.environ.get("POSTGRES_URL") or os.environ.get("POSTGRES_PRISMA_URL") or ""
+    if not url:
+        # Vercel(서버리스)은 cwd 가 읽기전용 → SQLite 는 쓰기 가능한 /tmp 에.
+        return "sqlite:////tmp/moneymate.db" if os.environ.get("VERCEL") else "sqlite:///./moneymate.db"
+    if url.startswith("postgres://"):
+        url = "postgresql+psycopg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://") and "+psycopg" not in url:
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    if url.startswith("postgresql+psycopg://") and "sslmode=" not in url:
+        url += ("&" if "?" in url else "?") + "sslmode=require"
+    return url
 
 
 class Settings(BaseSettings):
@@ -47,7 +62,13 @@ class Settings(BaseSettings):
     compat_base_url: str = ""
 
     # --- DB ---
-    database_url: str = _DEFAULT_DB
+    # 빈값이면 validator 가 POSTGRES_URL → SQLite 순으로 결정 + 스킴 정규화.
+    database_url: str = ""
+
+    @field_validator("database_url")
+    @classmethod
+    def _resolve_database_url(cls, v: str) -> str:
+        return _normalize_db_url(v)
 
     # --- 앱의 '오늘' (날짜 감각의 단일 소스) ---
     # live_date=False: demo_today 로 고정(데모·재현성). True: 실제 date.today() 사용.
