@@ -1,20 +1,18 @@
-"""MoneyMate FastAPI 앱 (STEP 11 프리뷰).
+"""MoneyMate FastAPI 앱 (API 서버).
 
-한 페이지 UI(app/web/index.html) + 최소 API 를 서빙한다.
-  GET  /                 대시보드 + 채팅 UI
+UI 는 Next.js 앱(frontend/, 기본 :3000)이 담당하고, 여기선 API 만 서빙한다.
   GET  /api/dashboard    금융 건강 상태 데이터
   GET  /api/proactive    AI 가 먼저 건네는 메시지
   POST /api/chat         사용자 질문 → 코치 답변
+  ...  /api/transfers · /api/simulate · /api/ingest · /api/dev/* 등
 """
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.agents.coach import speak
@@ -37,9 +35,6 @@ from app.services.simulation import (
     parse_amount,
     simulate_and_explain,
 )
-
-WEB_DIR = Path(__file__).resolve().parent / "web"
-
 
 def _seed() -> None:
     init_db()
@@ -155,8 +150,9 @@ def dev_reset() -> dict:
 
 
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+def root() -> dict:
+    """MoneyMate API. UI 는 Next.js 앱(기본 http://localhost:3000)에서 제공."""
+    return {"app": "MoneyMate API", "ui": "http://localhost:3000", "docs": "/docs"}
 
 
 @app.get("/api/dashboard")
