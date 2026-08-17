@@ -16,6 +16,14 @@ body {
     "Pretendard", sans-serif;
 }
 
+/* iOS 사파리: overflow:hidden 만으론 webview 자체 고무줄 바운스가 안 잡힘
+   → body 를 뷰포트에 완전히 고정(position:fixed)해서 바운스 원천 차단 */
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
 /* 가로 스크롤 칩 스크롤바 숨김 */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
