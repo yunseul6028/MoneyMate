@@ -14,7 +14,10 @@ export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number 
   return (
     <>
       {/* 헤더 (상단 고정) */}
-      <div className="sticky top-0 z-30 bg-gradient-to-br from-brand to-brand2 text-white px-5 pt-5 pb-7 rounded-b-[22px] shadow-sm">
+      <div
+        className="sticky top-0 z-30 bg-gradient-to-br from-brand to-brand2 text-white px-5 pb-7 rounded-b-[22px] shadow-sm"
+        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+      >
         <div className="flex justify-between items-baseline">
           <h1 className="text-xl font-extrabold tracking-tight">MoneyMate 💸</h1>
           <span className="text-xs opacity-80">{d?.today ?? "—"}</span>

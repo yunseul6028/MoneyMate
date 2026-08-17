@@ -366,7 +366,10 @@ export default function Chat({
           ))}
         </div>
 
-        <div className="pt-2 pb-4 flex gap-2 border-t border-line">
+        <div
+          className="pt-2 flex gap-2 border-t border-line"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
