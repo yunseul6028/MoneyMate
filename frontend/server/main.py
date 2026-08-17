@@ -30,6 +30,7 @@ from server.services.classifier import record_correction
 from server.services import transfers as transfers_svc
 from server.services.dashboard import build_dashboard
 from server.services.ingest import ingest_transactions
+from server.services import purchases as purchases_svc
 from server.services.simulation import (
     is_purchase_question,
     parse_amount,
@@ -90,6 +91,11 @@ class IngestIn(BaseModel):
 
 
 class CorrectIn(BaseModel):
+    category: str
+
+
+class PurchaseCatIn(BaseModel):
+    merchant: str
     category: str
 
 
@@ -266,6 +272,25 @@ def categorize_transfer(tx_id: int, inp: CorrectIn) -> dict:
         tx.tx_type = "expense" if tx.direction == "out" else "income"
         tx.category_source = "user"
         return {"ok": True, "category": inp.category}
+
+
+@app.get("/api/purchases/unresolved")
+def unresolved_purchases() -> dict:
+    """규칙/AI 로도 못 정해 '기타'로 남은 카드결제를 가맹점 단위로 (질문 대기열)."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        return {"queue": purchases_svc.unresolved_purchase_queue(s, uid)}
+
+
+@app.post("/api/purchases/categorize")
+def categorize_purchase(inp: PurchaseCatIn) -> dict:
+    """'기타' 카드결제를 사용자가 고른 카테고리로 확정 → 개인화 학습 + 같은 가맹점 전부 반영."""
+    if inp.category not in C.EXPENSE_CATEGORIES:
+        return {"ok": False, "error": "unknown_category"}
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        n = purchases_svc.categorize_purchase(s, uid, inp.merchant, inp.category)
+        return {"ok": True, "category": inp.category, "updated": n}
 
 
 @app.post("/api/ingest")

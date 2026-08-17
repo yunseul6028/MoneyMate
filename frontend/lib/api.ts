@@ -115,6 +115,24 @@ export const resolvePerson = (person: string, kind: string, category: string) =>
 export const categorizeTransfer = (id: number, category: string) =>
   jpost<{ ok: boolean; category: string }>(`/api/transfers/${id}/categorize`, { category });
 
+// 규칙/AI 로도 못 정한 '기타' 카드결제 → 가맹점 단위 질문 대기열
+export type PurchaseTx = {
+  id: number;
+  merchant: string;
+  amount: number;
+  date: string;
+  count: number;
+  total: number;
+};
+export const getUnresolvedPurchases = () =>
+  jget<{ queue: PurchaseTx[] }>("/api/purchases/unresolved");
+// 사용자가 고른 카테고리로 확정 → 개인화 학습 + 같은 가맹점 전부 반영
+export const categorizePurchase = (merchant: string, category: string) =>
+  jpost<{ ok: boolean; category: string; updated: number }>(
+    "/api/purchases/categorize",
+    { merchant, category }
+  );
+
 // 목업 테스트용 이벤트 주입 / 초기화
 export const devEvent = (kind: string) =>
   jpost<{ ok: boolean; kind: string }>("/api/dev/event", { kind });

@@ -2,17 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  categorizePurchase,
   categorizeTransfer,
   getCategories,
   getProactive,
   getTransfers,
+  getUnresolvedPurchases,
   resolvePerson,
   sendChat,
   won,
+  type PurchaseTx,
   type TransferTx,
 } from "@/lib/api";
 
-type Action = { tx: TransferTx; mode: "ask" | "pick" };
+type Action =
+  | { kind: "transfer"; tx: TransferTx; mode: "ask" | "pick" }
+  | { kind: "purchase"; purchase: PurchaseTx };
 type Msg = { who: "ai" | "user"; text: string; tag?: string; action?: Action };
 
 const QUICK = [
@@ -40,6 +45,9 @@ export default function Chat({
   const resolved = useRef<Set<string>>(new Set()); // 이번 세션에 이미 정리한 사람
   const seenIds = useRef<Set<number>>(new Set()); // 이미 큐에 넣은 거래
   const pendingAsk = useRef(false);             // 현재 질문 대기 중인지
+  const pQueue = useRef<PurchaseTx[]>([]);      // '기타' 카드결제 질문 큐 (송금 다음 차례)
+  const seenMerch = useRef<Set<string>>(new Set());   // 이미 큐에 넣은 가맹점
+  const resolvedMerch = useRef<Set<string>>(new Set()); // 이번 세션에 이미 정리한 가맹점
   const endRef = useRef<HTMLDivElement>(null);
   const didInit = useRef(false);
   const composing = useRef(false); // 한글 IME 조합 중 여부
@@ -73,6 +81,11 @@ export default function Chat({
           queueTransfers(t.queue);
         }
       } catch {}
+      // 규칙/AI 로도 못 정한 '기타' 카드결제도 하나씩 물어봄 (송금 다음 차례)
+      try {
+        const pr = await getUnresolvedPurchases();
+        if (pr.queue.length) queuePurchases(pr.queue);
+      } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -90,6 +103,10 @@ export default function Chat({
       try {
         const t = await getTransfers();
         queueTransfers(t.queue);
+      } catch {}
+      try {
+        const pr = await getUnresolvedPurchases();
+        queuePurchases(pr.queue);
       } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,14 +129,61 @@ export default function Chat({
   function askNext() {
     let tx = queue.current.shift();
     while (tx && resolved.current.has(tx.person)) tx = queue.current.shift(); // 이미 정리한 사람 건너뜀
-    if (!tx) {
+    if (tx) {
+      pendingAsk.current = true;
+      push({ who: "ai", text: txLine(tx), action: { kind: "transfer", tx, mode: "ask" } });
+      return;
+    }
+    // 사람 송금 다 끝났으면 → '기타' 카드결제 질문 차례
+    askNextPurchase();
+  }
+
+  function purchaseLine(p: PurchaseTx): string {
+    const [, mm, dd] = p.date.split("-");
+    const when = `${Number(mm)}/${Number(dd)}`;
+    const many = p.count > 1 ? ` (여기서 그동안 총 ${p.count}건 ${won(p.total)})` : "";
+    return `${when}에 '${p.merchant}'에서 ${won(p.amount)} 썼는데${many}, 여긴 아직 분류가 안 됐어. 어디에 넣을까? 🧐`;
+  }
+
+  function askNextPurchase() {
+    let p = pQueue.current.shift();
+    while (p && resolvedMerch.current.has(p.merchant)) p = pQueue.current.shift(); // 이미 정리한 가맹점 건너뜀
+    if (!p) {
       if (pendingAsk.current)
-        push({ who: "ai", text: "좋아, 송금들 이제 다 정리했다! 앞으로 알아서 분류해둘게 👍" });
+        push({ who: "ai", text: "좋아, 이제 다 정리했다! 앞으로 알아서 분류해둘게 👍" });
       pendingAsk.current = false;
       return;
     }
     pendingAsk.current = true;
-    push({ who: "ai", text: txLine(tx), action: { tx, mode: "ask" } });
+    push({ who: "ai", text: purchaseLine(p), action: { kind: "purchase", purchase: p } });
+  }
+
+  // 새 '기타' 카드결제를 큐에 넣고, 대기 중 질문이 없으면 물어보기 시작
+  function queuePurchases(list: PurchaseTx[]) {
+    let added = 0;
+    for (const p of list) {
+      if (seenMerch.current.has(p.merchant)) continue;
+      seenMerch.current.add(p.merchant);
+      if (resolvedMerch.current.has(p.merchant)) continue;
+      pQueue.current.push(p);
+      added++;
+    }
+    if (added && !pendingAsk.current) askNextPurchase();
+  }
+
+  // '기타' 카드결제를 사용자가 고른 카테고리로 확정 → 개인화 학습 + 같은 가맹점 전부 반영
+  async function onPickPurchase(idx: number, p: PurchaseTx, cat: string) {
+    clearAction(idx);
+    push({ who: "user", text: cat });
+    resolvedMerch.current.add(p.merchant);
+    setBusy(true);
+    try {
+      await categorizePurchase(p.merchant, cat);
+      onResolved?.();
+    } catch {}
+    setBusy(false);
+    push({ who: "ai", text: `오케이! '${p.merchant}'는 앞으로 ${cat}로 분류할게 👍` });
+    askNext();
   }
 
   // 새 송금 거래를 큐에 넣고, 대기 중인 질문이 없으면 물어보기 시작
@@ -152,7 +216,7 @@ export default function Chat({
   function onNotFriend(idx: number, tx: TransferTx) {
     clearAction(idx);
     push({ who: "user", text: "아니, 다른 거야" });
-    push({ who: "ai", text: "그렇구나! 그럼 이건 어디에 넣을까?", action: { tx, mode: "pick" } });
+    push({ who: "ai", text: "그렇구나! 그럼 이건 어디에 넣을까?", action: { kind: "transfer", tx, mode: "pick" } });
   }
 
   // 일회성: 이 건만 분류하고 사람은 기억하지 않음 (친구 정산만 기억)
@@ -191,7 +255,9 @@ export default function Chat({
       </div>
 
       <div className="flex flex-col gap-2.5 px-1 pb-3 flex-1">
-        {msgs.map((m, i) => (
+        {msgs.map((m, i) => {
+          const act = m.action; // const 로 잡아야 아래 onClick 클로저까지 타입 좁혀짐
+          return (
           <div
             key={i}
             className={
@@ -213,31 +279,45 @@ export default function Chat({
               m.text
             )}
 
-            {m.action?.mode === "ask" && (
+            {act?.kind === "transfer" && act.mode === "ask" && (
               <div className="flex gap-2">
                 <button
                   disabled={busy}
-                  onClick={() => onFriend(i, m.action!.tx)}
+                  onClick={() => onFriend(i, act.tx)}
                   className="flex-1 bg-brand text-white text-[13px] font-bold rounded-xl py-2 disabled:opacity-50"
                 >
                   응, 친구랑 정산 🤝
                 </button>
                 <button
                   disabled={busy}
-                  onClick={() => onNotFriend(i, m.action!.tx)}
+                  onClick={() => onNotFriend(i, act.tx)}
                   className="flex-1 bg-white border border-line text-[13px] font-bold rounded-xl py-2 disabled:opacity-50"
                 >
                   아니, 다른 거야
                 </button>
               </div>
             )}
-            {m.action?.mode === "pick" && (
+            {act?.kind === "transfer" && act.mode === "pick" && (
               <div className="flex flex-wrap gap-1.5">
                 {cats.map((c) => (
                   <button
                     key={c}
                     disabled={busy}
-                    onClick={() => onPick(i, m.action!.tx, c)}
+                    onClick={() => onPick(i, act.tx, c)}
+                    className="text-[12px] font-semibold border border-line rounded-lg px-2.5 py-1.5 bg-white disabled:opacity-50"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+            {act?.kind === "purchase" && (
+              <div className="flex flex-wrap gap-1.5">
+                {cats.map((c) => (
+                  <button
+                    key={c}
+                    disabled={busy}
+                    onClick={() => onPickPurchase(i, act.purchase, c)}
                     className="text-[12px] font-semibold border border-line rounded-lg px-2.5 py-1.5 bg-white disabled:opacity-50"
                   >
                     {c}
@@ -246,7 +326,8 @@ export default function Chat({
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {busy && (
           <div className="self-start text-muted text-[13px] px-2.5 py-1.5">
             MoneyMate가 입력 중…
