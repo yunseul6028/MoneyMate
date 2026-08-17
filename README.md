@@ -1,5 +1,7 @@
 # MoneyMate 💸
 
+**🔗 Live: https://moneymate-buddy.vercel.app**
+
 > 가계부를 쓰게 만드는 서비스가 아니라, **가계부를 쓰지 않아도 나를 챙겨주는 금융 친구**.
 
 대학생을 위한 Proactive 금융 관리 AI. 사용자가 직접 기록하지 않아도 소비 패턴을 관찰하고,
