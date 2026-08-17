@@ -38,11 +38,14 @@ export default function Home() {
   }
 
   return (
-    <main className="max-w-phone mx-auto min-h-screen flex flex-col bg-[#f4f4f7]">
-      <DashboardView refreshKey={refresh} />
-      <div className="px-3.5 pb-2 flex flex-col gap-3 flex-1">
-        <TestPanel onEvent={onEvent} />
-        <Chat onResolved={bump} pokeKey={poke} />
+    <main className="max-w-phone mx-auto h-[100dvh] flex flex-col bg-[#f4f4f7] overflow-hidden">
+      {/* 이 안쪽만 스크롤 (body 는 고정 → 고무줄 바운스 없음). 헤더/입력바는 여기서 sticky */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col">
+        <DashboardView refreshKey={refresh} />
+        <div className="px-3.5 pb-2 flex flex-col gap-3 flex-1">
+          <TestPanel onEvent={onEvent} />
+          <Chat onResolved={bump} pokeKey={poke} />
+        </div>
       </div>
     </main>
   );

@@ -4,6 +4,11 @@
 
 html,
 body {
+  height: 100%;
+  margin: 0;
+  /* body 자체 스크롤·고무줄 바운스·당겨서새로고침 차단 (스크롤은 앱 내부 영역에서만) */
+  overflow: hidden;
+  overscroll-behavior: none;
   background: #f4f4f7;
   color: #1c1c28;
   -webkit-font-smoothing: antialiased;
