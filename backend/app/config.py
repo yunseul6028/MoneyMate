@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import os
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -12,6 +13,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 어느 디렉토리에서 실행하든 backend/.env 를 찾도록 절대경로 사용.
 _ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+
+# Vercel(서버리스)은 cwd 가 읽기전용 → SQLite 는 쓰기 가능한 /tmp 에.
+_DEFAULT_DB = (
+    "sqlite:////tmp/moneymate.db"
+    if os.environ.get("VERCEL")
+    else "sqlite:///./moneymate.db"
+)
 
 
 class Settings(BaseSettings):
@@ -39,7 +47,7 @@ class Settings(BaseSettings):
     compat_base_url: str = ""
 
     # --- DB ---
-    database_url: str = "sqlite:///./moneymate.db"
+    database_url: str = _DEFAULT_DB
 
     # --- 앱의 '오늘' (날짜 감각의 단일 소스) ---
     # live_date=False: demo_today 로 고정(데모·재현성). True: 실제 date.today() 사용.
