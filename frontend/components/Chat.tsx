@@ -30,6 +30,21 @@ const QUICK = [
 const tagFor = (kind: string): string | undefined =>
   kind === "coach" ? "맥락 이해 완료" : kind === "simulation" ? "가상 시뮬레이션" : undefined;
 
+// --- 한글 조사 자동 선택 (마지막 글자 받침 유무로 결정) ---
+function _lastJong(word: string): number {
+  const c = word.trim().slice(-1).charCodeAt(0);
+  if (Number.isNaN(c) || c < 0xac00 || c > 0xd7a3) return -1; // 한글 아님
+  return (c - 0xac00) % 28; // 0=받침없음, 8=ㄹ
+}
+// 받침 있으면 withJong, 없으면(또는 비한글) noJong  — 예: 은/는, 이랑/랑
+const josa = (w: string, withJong: string, noJong: string) =>
+  _lastJong(w) > 0 ? withJong : noJong;
+// '(으)로': 받침 없거나 ㄹ 받침이면 '로', 그 외엔 '으로'
+const euro = (w: string) => {
+  const j = _lastJong(w);
+  return j <= 0 || j === 8 ? "로" : "으로";
+};
+
 export default function Chat({
   onResolved,
   pokeKey = 0,
@@ -182,7 +197,7 @@ export default function Chat({
       onResolved?.();
     } catch {}
     setBusy(false);
-    push({ who: "ai", text: `오케이! '${p.merchant}'는 앞으로 ${cat}로 분류할게 👍` });
+    push({ who: "ai", text: `오케이! '${p.merchant}'${josa(p.merchant, "은", "는")} 앞으로 ${cat}${euro(cat)} 분류할게 👍` });
     askNext();
   }
 
@@ -209,7 +224,7 @@ export default function Chat({
       onResolved?.();
     } catch {}
     setBusy(false);
-    push({ who: "ai", text: `오케이! ${tx.person}랑은 식음료로 정리해둘게 🍚` });
+    push({ who: "ai", text: `오케이! ${tx.person}${josa(tx.person, "이랑은", "랑은")} 식음료로 정리해둘게 🍚` });
     askNext();
   }
 
