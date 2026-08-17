@@ -56,6 +56,21 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
+# 서버리스(Vercel)에서는 lifespan 이 안 돌 수 있어, 첫 요청 때 시드를 보장한다(멱등).
+_seeded = False
+
+
+@app.middleware("http")
+async def _seed_guard(request, call_next):
+    global _seeded
+    if not _seeded:
+        try:
+            _seed()
+        except Exception:
+            pass
+        _seeded = True
+    return await call_next(request)
+
 
 def _demo_user_id(s) -> int:
     return s.query(User).order_by(User.id.asc()).first().id
