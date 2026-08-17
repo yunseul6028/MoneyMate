@@ -31,6 +31,7 @@ class MockTx:
     tx_type: str
     payment_method: str
     memo: str | None = None
+    direction: str = "out"  # 송금 방향: out=보냄, in=받음 (정산 netting 용)
 
 
 # --- baseline 후보 (정상 소비) ---
@@ -182,6 +183,36 @@ def generate_mock_ledger(today: date) -> dict:
 
     # 장학금: 일회성
     add_income("교내 성적장학금", month_first(today) - timedelta(days=20), 500_000, C.SCHOLARSHIP)
+
+    # ---------------------------------------------------------------
+    # 8) 친구 송금(정산 시나리오): 마스킹 이름 → 정산 대화 흐름 유도.
+    #    일부는 내가 보냄(out), 일부는 친구가 입금(in). 같은 사람 보냄+받음 → netting 데모.
+    # ---------------------------------------------------------------
+    def add_transfer(merchant: str, day: date, amount: float, direction: str):
+        if start <= day <= today:
+            txs.append(MockTx(day, merchant, amount, C.ETC, C.TRANSFER,
+                              C.TRANSFER, "친구 정산", direction))
+
+    mf = month_first(today)
+    add_transfer("토스 김*은", mf + timedelta(days=2), 12_000, "in")   # 내가 밥 사고 걔가 정산 입금
+    add_transfer("박*서", mf + timedelta(days=4), 18_000, "out")       # 걔가 결제, 내가 송금
+    add_transfer("이*준", mf + timedelta(days=6), 9_500, "in")
+    add_transfer("최*아", mf + timedelta(days=7), 30_000, "out")       # 같이 큰 결제 내가 함
+    add_transfer("최*아", mf + timedelta(days=8), 15_000, "in")        # 절반 돌려받음(netting)
+    add_transfer("정*민", mf + timedelta(days=9), 22_000, "in")
+    add_transfer("토스 김*은", mf - timedelta(days=20), 8_000, "in")   # 지난달 건(양감)
+    add_transfer("한*결", mf - timedelta(days=15), 27_000, "out")
+
+    # ---------------------------------------------------------------
+    # 9) 규칙/AI 로도 애매한 '기타' 카드결제 → 분류 질문 흐름 유도 (규칙에 없는 상호명)
+    # ---------------------------------------------------------------
+    def add_eta(merchant: str, day: date, amount: float):
+        if start <= day <= today:
+            txs.append(MockTx(day, merchant, amount, C.ETC, C.EXPENSE,
+                              _pm_for(day, today, C.CREDIT)))
+
+    add_eta("다함컴퍼니", mf + timedelta(days=3), 5_500)
+    add_eta("스튜디오 노아", mf - timedelta(days=5), 18_000)
 
     # 날짜순 정렬
     txs.sort(key=lambda t: t.tx_date)
