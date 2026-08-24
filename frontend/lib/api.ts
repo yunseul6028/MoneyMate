@@ -81,6 +81,18 @@ export type Profile = {
 
 export const getProfile = () => jget<Profile>("/api/profile");
 
+// 이번 달 지출 상세 목록 (자세히 보기 표)
+export type TxRow = {
+  id: number;
+  date: string;
+  merchant: string;
+  category: string;
+  amount: number;
+  payment_method: string;
+};
+export type TxList = { month: string; count: number; total: number; items: TxRow[] };
+export const getTransactions = () => jget<TxList>("/api/transactions");
+
 export type PersonAgg = {
   person: string;
   sent: number;

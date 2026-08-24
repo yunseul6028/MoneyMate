@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDashboard, won, type Dashboard } from "@/lib/api";
+import { getDashboard, getTransactions, won, type Dashboard, type TxList } from "@/lib/api";
 
 export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number }) {
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
     getDashboard().then(setD).catch(() => setErr(true));
@@ -39,11 +40,19 @@ export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number 
           <p className="text-sm text-muted">불러오는 중…</p>
         ) : (
           <>
-            <div className="text-[30px] font-extrabold tracking-tight">
-              {won(d.month_expense)}
-              <span className="text-sm font-semibold text-muted ml-1">
-                이번 달 지출
-              </span>
+            <div className="flex items-start justify-between">
+              <div className="text-[30px] font-extrabold tracking-tight">
+                {won(d.month_expense)}
+                <span className="text-sm font-semibold text-muted ml-1">
+                  이번 달 지출
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDetail(true)}
+                className="mt-1.5 shrink-0 text-[12px] font-bold text-brand bg-[#efeafe] rounded-full px-3 py-1.5"
+              >
+                자세히 보기 ›
+              </button>
             </div>
 
             <div className="flex gap-2.5 mt-3">
@@ -78,7 +87,81 @@ export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number 
           </>
         )}
       </div>
+
+      {showDetail && <TxDetailModal onClose={() => setShowDetail(false)} />}
     </>
+  );
+}
+
+function TxDetailModal({ onClose }: { onClose: () => void }) {
+  const [data, setData] = useState<TxList | null>(null);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    getTransactions().then(setData).catch(() => setErr(true));
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-phone bg-white rounded-t-2xl flex flex-col max-h-[85dvh]"
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+          <div>
+            <div className="text-[15px] font-extrabold">이번 달 지출 내역</div>
+            <div className="text-[12px] text-muted mt-0.5">
+              {data ? `${data.count}건 · 합계 ${won(data.total)}` : "불러오는 중…"}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted text-xl px-2 -mr-2 leading-none">
+            ✕
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-2 pb-2">
+          {err ? (
+            <p className="text-sm text-warn px-2 py-8 text-center">내역을 불러오지 못했어.</p>
+          ) : !data ? (
+            <p className="text-sm text-muted px-2 py-8 text-center">불러오는 중…</p>
+          ) : data.items.length === 0 ? (
+            <p className="text-sm text-muted px-2 py-8 text-center">이번 달 지출 내역이 아직 없어.</p>
+          ) : (
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-[11px] text-muted text-left border-b border-line">
+                  <th className="font-semibold py-2 pl-2 w-12">날짜</th>
+                  <th className="font-semibold py-2">내용</th>
+                  <th className="font-semibold py-2 w-14">분류</th>
+                  <th className="font-semibold py-2 pr-2 text-right w-20">금액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((t) => {
+                  const [, mm, dd] = t.date.split("-");
+                  return (
+                    <tr key={t.id} className="border-b border-[#f2f2f6]">
+                      <td className="py-2 pl-2 text-muted tabular-nums whitespace-nowrap">
+                        {Number(mm)}/{Number(dd)}
+                      </td>
+                      <td className="py-2 pr-2 font-semibold truncate max-w-0">{t.merchant}</td>
+                      <td className="py-2 text-muted whitespace-nowrap">{t.category}</td>
+                      <td className="py-2 pr-2 text-right font-bold tabular-nums whitespace-nowrap">
+                        {won(t.amount)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

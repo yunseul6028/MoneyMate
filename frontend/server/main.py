@@ -185,6 +185,43 @@ def dashboard() -> dict:
         return build_dashboard(report, user.name)
 
 
+@app.get("/api/transactions")
+def transactions() -> dict:
+    """이번 달 지출 내역 (표로 보여줄 상세 목록, 최신순)."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        today = clock.today()
+        first = today.replace(day=1)
+        rows = (
+            s.query(Transaction)
+            .filter(
+                Transaction.user_id == uid,
+                Transaction.tx_type == C.EXPENSE,
+                Transaction.tx_date >= first,
+                Transaction.tx_date <= today,
+            )
+            .order_by(Transaction.tx_date.desc(), Transaction.id.desc())
+            .all()
+        )
+        items = [
+            {
+                "id": t.id,
+                "date": t.tx_date.isoformat(),
+                "merchant": t.merchant,
+                "category": t.category,
+                "amount": round(t.amount),
+                "payment_method": t.payment_method,
+            }
+            for t in rows
+        ]
+        return {
+            "month": first.isoformat()[:7],
+            "count": len(items),
+            "total": round(sum(i["amount"] for i in items)),
+            "items": items,
+        }
+
+
 @app.get("/api/proactive")
 def proactive() -> dict:
     """AI 가 지금 먼저 말을 걸지 판단해 메시지를 반환(기록은 하지 않음 — 프리뷰)."""
