@@ -123,7 +123,7 @@ function TxDetailModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="overflow-y-auto px-2 pb-2">
+        <div className="overflow-y-auto no-scrollbar px-2 pb-2">
           {err ? (
             <p className="text-sm text-warn px-2 py-8 text-center">내역을 불러오지 못했어.</p>
           ) : !data ? (

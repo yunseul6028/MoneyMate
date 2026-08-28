@@ -95,7 +95,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
       {step < 2 ? (
         <>
-          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-center px-7">
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col justify-center px-7">
             {step === 0 && (
               <div className="text-center">
                 <div className="text-[64px] mb-2">💸</div>
@@ -161,7 +161,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       ) : (
         /* step 2 — 대화형 기초 설정 */
         <>
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 flex flex-col gap-2.5 pt-2">
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 flex flex-col gap-2.5 pt-2">
             {msgs.map((m, i) => (
               <div
                 key={i}
