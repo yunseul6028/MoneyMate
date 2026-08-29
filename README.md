@@ -1,6 +1,6 @@
 # MoneyMate 💸
 
-**🔗 Live: https://moneymate-buddy.vercel.app**
+**🔗 [moneymate-buddy.vercel.app](https://moneymate-buddy.vercel.app)**
 
 > 가계부를 쓰게 만드는 서비스가 아니라, **가계부를 쓰지 않아도 나를 챙겨주는 금융 친구**.
 
