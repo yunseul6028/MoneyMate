@@ -20,6 +20,7 @@ from server.agents.critic import infer_ack_tokens
 from server.agents.proactive import decide
 from server.core import categories as C
 from server.core import clock
+from server.core.format import friendly_won
 from server.db.database import init_db, session_scope
 from server.db.models import AgentEvent, PersonRule, Transaction, User, UserProfile
 from server.llm.factory import get_llm
@@ -183,6 +184,38 @@ def dashboard() -> dict:
         user = s.get(User, uid)
         report = analyze(s, uid, clock.today())
         return build_dashboard(report, user.name)
+
+
+@app.get("/api/widget")
+def widget() -> dict:
+    """홈/잠금화면 위젯용 경량 데이터 — 오늘 쓸 수 있는 돈 / 이번 달 남은 돈 / 한 줄."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        user = s.get(User, uid)
+        r = analyze(s, uid, clock.today())
+        days_left = max(1, r.days_in_month - r.days_elapsed + 1)  # 오늘 포함
+        month_left = round(r.remaining_budget)
+        today_left = max(0, round(month_left / days_left)) if month_left > 0 else 0
+
+        if month_left <= 0:
+            line = f"이번 달 예산을 넘었어 😥 남은 {days_left}일은 아껴보자"
+        elif today_left < 8_000:
+            line = f"오늘은 {friendly_won(today_left)}까지가 딱이야 🙏"
+        else:
+            line = f"여유 있어! 오늘 {friendly_won(today_left)}까진 괜찮아 😎"
+
+        return {
+            "user": user.name,
+            "today": r.today.isoformat(),
+            "today_left": today_left,
+            "month_left": max(0, month_left),
+            "days_left": days_left,
+            "month_budget": round(r.monthly_budget),
+            "month_expense": round(r.month_expense),
+            "line": line,
+            "today_left_str": friendly_won(today_left),
+            "month_left_str": friendly_won(max(0, month_left)),
+        }
 
 
 @app.get("/api/transactions")
