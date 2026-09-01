@@ -154,6 +154,26 @@ class PersonRule(Base):
     )
 
 
+class PurchaseHold(Base):
+    """충동구매 유예('고민함'). '사도 될까?' 순간 바로 안 사고 재워두는 항목.
+
+    쿨다운은 '실제 경과 시간'으로 재야 하므로 데모 시계(clock)가 아니라
+    real wall-clock(datetime.now)을 쓴다.
+      status: pending(고민 중) | bought(샀음) | dropped(접음 → 아낀 돈)
+    """
+
+    __tablename__ = "purchase_holds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    item: Mapped[str] = mapped_column(String(120), nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    remind_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class AgentEvent(Base):
     """Agent 가 사용자에게 '먼저 말을 건' 기록.
 

@@ -1,16 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDashboard, getTransactions, won, type Dashboard, type TxList } from "@/lib/api";
+import {
+  decideHold,
+  getDashboard,
+  getHolds,
+  getTransactions,
+  won,
+  type Dashboard,
+  type HoldsResp,
+  type TxList,
+} from "@/lib/api";
 
 export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number }) {
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [holds, setHolds] = useState<HoldsResp | null>(null);
+
+  const loadHolds = () => getHolds().then(setHolds).catch(() => {});
 
   useEffect(() => {
     getDashboard().then(setD).catch(() => setErr(true));
+    loadHolds();
   }, [refreshKey]);
+
+  async function decide(id: number, decision: "bought" | "dropped") {
+    try {
+      await decideHold(id, decision);
+    } catch {}
+    loadHolds();
+  }
 
   return (
     <>
@@ -87,6 +107,52 @@ export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number 
           </>
         )}
       </div>
+
+      {/* 고민함 (충동구매 유예) */}
+      {holds && (holds.items.length > 0 || holds.saved_total > 0) && (
+        <div className="mx-3.5 mt-3 rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className="text-[13px] text-muted font-bold">🤔 고민 중</h2>
+            {holds.saved_total > 0 && (
+              <span className="text-[12px] font-bold text-brand">
+                고민 끝에 아낀 돈 {won(holds.saved_total)}
+              </span>
+            )}
+          </div>
+
+          {holds.items.length === 0 ? (
+            <p className="text-[13px] text-muted">지금 재워둔 지출은 없어. 잘 참았어 💪</p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {holds.items.map((h) => (
+                <div key={h.id} className="border border-line rounded-xl p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="font-bold text-sm truncate">{h.item}</div>
+                    <div className="font-extrabold tabular-nums shrink-0">{won(h.amount)}</div>
+                  </div>
+                  <div className="text-[11px] text-muted mt-0.5">
+                    {h.elapsed} 고민 중 · {h.due ? "이제 결정할 시간 ⏰" : `${h.remaining} 다시 알림`}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => decide(h.id, "dropped")}
+                      className="flex-1 bg-brand text-white text-[12px] font-bold rounded-lg py-1.5"
+                    >
+                      접을래 (아낀다) 💪
+                    </button>
+                    <button
+                      onClick={() => decide(h.id, "bought")}
+                      className="flex-1 bg-white border border-line text-[12px] font-bold rounded-lg py-1.5"
+                    >
+                      샀어
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showDetail && <TxDetailModal onClose={() => setShowDetail(false)} />}
     </>

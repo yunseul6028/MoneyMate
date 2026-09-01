@@ -33,7 +33,37 @@ export type ProactiveResp = {
   trigger?: string;
 };
 
-export type ChatResp = { reply: string; kind: "coach" | "chat"; decision?: string };
+export type ChatResp = {
+  reply: string;
+  kind: "coach" | "chat" | "simulation";
+  decision?: string;
+  amount?: number; // 시뮬레이션일 때 파싱된 금액 (재워두기용)
+  item?: string; // 재워두기 항목 라벨
+};
+
+// 고민함 (충동구매 유예)
+export type Hold = {
+  id: number;
+  item: string;
+  amount: number;
+  elapsed: string;
+  remaining: string;
+  due: boolean;
+};
+export type HoldsResp = {
+  items: Hold[];
+  count: number;
+  saved_total: number;
+  saved_count: number;
+};
+export const getHolds = () => jget<HoldsResp>("/api/holds");
+export const addHold = (item: string, amount: number, hours = 24) =>
+  jpost<{ ok: boolean; id?: number }>("/api/holds", { item, amount, hours });
+export const decideHold = (id: number, decision: "bought" | "dropped") =>
+  jpost<{ ok: boolean; status?: string; amount?: number }>(
+    `/api/holds/${id}/decide`,
+    { decision }
+  );
 
 export type IngestItem = {
   id: number;

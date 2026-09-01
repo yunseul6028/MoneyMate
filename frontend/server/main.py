@@ -30,6 +30,7 @@ from server.services.chat import chat_answer
 from server.services.classifier import record_correction
 from server.services import transfers as transfers_svc
 from server.services.dashboard import build_dashboard
+from server.services import holds as holds_svc
 from server.services.ingest import ingest_transactions
 from server.services import purchases as purchases_svc
 from server.services.simulation import (
@@ -98,6 +99,16 @@ class CorrectIn(BaseModel):
 class PurchaseCatIn(BaseModel):
     merchant: str
     category: str
+
+
+class HoldIn(BaseModel):
+    item: str
+    amount: int
+    hours: float = 24
+
+
+class HoldDecideIn(BaseModel):
+    decision: str  # bought | dropped
 
 
 class SimulateIn(BaseModel):
@@ -363,6 +374,36 @@ def categorize_purchase(inp: PurchaseCatIn) -> dict:
         return {"ok": True, "category": inp.category, "updated": n}
 
 
+@app.get("/api/holds")
+def holds() -> dict:
+    """고민함 — 재워둔(고민 중) 지출 목록 + 이번까지 아낀 돈."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        return holds_svc.list_holds(s, uid)
+
+
+@app.post("/api/holds")
+def add_hold(inp: HoldIn) -> dict:
+    """충동구매를 바로 안 사고 재워두기(고민함에 추가)."""
+    if inp.amount <= 0 or not inp.item.strip():
+        return {"ok": False, "error": "invalid"}
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        h = holds_svc.add_hold(s, uid, inp.item.strip(), inp.amount, inp.hours)
+        return {"ok": True, "id": h.id}
+
+
+@app.post("/api/holds/{hold_id}/decide")
+def decide_hold(hold_id: int, inp: HoldDecideIn) -> dict:
+    """고민 끝 — bought(샀음) | dropped(접음→아낀 돈)."""
+    with session_scope() as s:
+        uid = _demo_user_id(s)
+        h = holds_svc.decide_hold(s, uid, hold_id, inp.decision)
+        if h is None:
+            return {"ok": False, "error": "not_found_or_invalid"}
+        return {"ok": True, "status": h.status, "amount": round(h.amount)}
+
+
 @app.post("/api/ingest")
 def ingest(inp: IngestIn) -> dict:
     """카드 결제 내역 텍스트를 받아 각 줄을 자동 분류·저장.
@@ -407,6 +448,17 @@ def simulate(inp: SimulateIn) -> dict:
     return {"kind": "simulation", **res}
 
 
+def _hold_item_label(msg: str, amount: int) -> str:
+    """'20만원 기타 사도 될까?' → '기타' (재워두기 항목명으로 쓸 짧은 라벨)."""
+    import re
+
+    s = re.sub(r"[\d,]+\s*만?\s*원?", "", msg)  # 금액 표현 제거
+    for w in ("사도 될까", "사도될까", "사도 돼", "사도돼", "살까", "사면", "구매", "사도", "?", "!"):
+        s = s.replace(w, "")
+    s = s.strip(" ?.!~,")
+    return s or "이 지출"
+
+
 @app.post("/api/chat")
 def chat(inp: ChatIn) -> dict:
     llm = get_llm()
@@ -420,7 +472,8 @@ def chat(inp: ChatIn) -> dict:
             if amount:
                 res = simulate_and_explain(llm, report, amount, inp.message)
                 return {"reply": res["reply"], "kind": "simulation",
-                        "simulation": res["simulation"]}
+                        "simulation": res["simulation"],
+                        "amount": amount, "item": _hold_item_label(inp.message, amount)}
 
         # 사용자가 맥락을 설명하면(예: "시험기간이라") → 코치 파이프라인으로 응답
         tokens = infer_ack_tokens(inp.message)

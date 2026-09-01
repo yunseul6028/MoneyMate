@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  addHold,
   categorizePurchase,
   categorizeTransfer,
   getCategories,
@@ -17,7 +18,8 @@ import {
 
 type Action =
   | { kind: "transfer"; tx: TransferTx; mode: "ask" | "pick" }
-  | { kind: "purchase"; purchase: PurchaseTx };
+  | { kind: "purchase"; purchase: PurchaseTx }
+  | { kind: "hold"; item: string; amount: number };
 type Msg = { who: "ai" | "user"; text: string; tag?: string; action?: Action };
 
 const QUICK = [
@@ -255,12 +257,39 @@ export default function Chat({
     setBusy(true);
     try {
       const r = await sendChat(text);
-      push({ who: "ai", text: r.reply, tag: tagFor(r.kind) });
+      // 큰 금액 구매 시뮬레이션이면 → 바로 안 사고 '재워두기' 선택지 제공
+      const action =
+        r.kind === "simulation" && r.amount && r.amount >= 50_000
+          ? { kind: "hold" as const, item: r.item || "이 지출", amount: r.amount }
+          : undefined;
+      push({ who: "ai", text: r.reply, tag: tagFor(r.kind), action });
     } catch {
       push({ who: "ai", text: "앗, 잠깐 문제가 생겼어. 다시 시도해줘." });
     } finally {
       setBusy(false);
     }
+  }
+
+  // 시뮬레이션 후: 그래도 산다 / 하루 재워둔다
+  function onBuyAnyway(idx: number) {
+    clearAction(idx);
+    push({ who: "user", text: "그래도 살래" });
+    push({ who: "ai", text: "그래, 진짜 필요한 거면 사야지 👍 잘 골라봐!" });
+  }
+
+  async function onSleep(idx: number, item: string, amount: number) {
+    clearAction(idx);
+    push({ who: "user", text: "하루 재워둘래 😴" });
+    setBusy(true);
+    try {
+      await addHold(item, amount);
+      onResolved?.();
+    } catch {}
+    setBusy(false);
+    push({
+      who: "ai",
+      text: `좋아, '${item}'${josa(item, "은", "는")} 하루 재워둘게 😴 내일 다시 물어볼게 — 그때도 사고 싶으면 그건 진짜인 거야 😎`,
+    });
   }
 
   return (
@@ -338,6 +367,24 @@ export default function Chat({
                     {c}
                   </button>
                 ))}
+              </div>
+            )}
+            {act?.kind === "hold" && (
+              <div className="flex gap-2">
+                <button
+                  disabled={busy}
+                  onClick={() => onBuyAnyway(i)}
+                  className="flex-1 bg-white border border-line text-[13px] font-bold rounded-xl py-2 disabled:opacity-50"
+                >
+                  그래도 살래
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => onSleep(i, act.item, act.amount)}
+                  className="flex-1 bg-brand text-white text-[13px] font-bold rounded-xl py-2 disabled:opacity-50"
+                >
+                  하루 재워둘래 😴
+                </button>
               </div>
             )}
           </div>
