@@ -67,9 +67,15 @@ def list_holds(session: Session, user_id: int) -> dict:
         }
         for h in pending
     ]
+    # '아낀 돈'은 이번 달만 집계 (달 바뀌면 리셋). 접은 시각(decided_at) 기준.
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     dropped = (
         session.query(PurchaseHold)
-        .filter(PurchaseHold.user_id == user_id, PurchaseHold.status == "dropped")
+        .filter(
+            PurchaseHold.user_id == user_id,
+            PurchaseHold.status == "dropped",
+            PurchaseHold.decided_at >= month_start,
+        )
         .all()
     )
     return {

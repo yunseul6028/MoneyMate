@@ -115,7 +115,7 @@ export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number 
             <h2 className="text-[13px] text-muted font-bold">🤔 고민 중</h2>
             {holds.saved_total > 0 && (
               <span className="text-[12px] font-bold text-brand">
-                고민 끝에 아낀 돈 {won(holds.saved_total)}
+                이번 달 아낀 돈 {won(holds.saved_total)}
               </span>
             )}
           </div>
