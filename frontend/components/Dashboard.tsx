@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   decideHold,
@@ -43,9 +44,17 @@ export default function DashboardView({ refreshKey = 0 }: { refreshKey?: number 
           <h1 className="text-xl font-extrabold tracking-tight">MoneyMate 💸</h1>
           <span className="text-xs opacity-80">{d?.today ?? "—"}</span>
         </div>
-        <p className="mt-2.5 text-[13px] opacity-95">
-          {d ? `${d.user}야, 오늘도 내가 지켜보고 있어 👀` : "불러오는 중…"}
-        </p>
+        <div className="flex justify-between items-center mt-2.5 gap-2">
+          <p className="text-[13px] opacity-95">
+            {d ? `${d.user}야, 오늘도 내가 지켜보고 있어 👀` : "불러오는 중…"}
+          </p>
+          <Link
+            href="/widget"
+            className="shrink-0 text-[12px] font-bold bg-white/20 rounded-full px-3 py-1 whitespace-nowrap"
+          >
+            📱 위젯
+          </Link>
+        </div>
       </div>
 
       {/* 금융 상태 카드 */}
