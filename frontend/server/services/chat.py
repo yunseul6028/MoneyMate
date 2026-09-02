@@ -21,7 +21,9 @@ CHAT_SYSTEM = """너는 'MoneyMate', 대학생을 위한 금융 친구 AI야.
 - 아래 데이터는 '참고용 전체'야. 다 쓰라는 게 아니라, 질문에 필요한 것만 골라 써.
 
 [절대 규칙]
-- 아래 제공된 숫자만 사용해. 새로 계산하거나 지어내지 마. 모르면 "그건 아직 정확히 모르겠어"라고 해.
+- 총액·예산·카드값 같은 '합계'는 위에 계산된 숫자를 그대로 써(직접 더하거나 새로 계산하지 마).
+- 반면 '무슨 매장인지, 언제 얼마 썼는지' 같은 개별 내역은 '이번 달 개별 거래 내역'에서 찾아 정확히 답해.
+  거래 목록에 있으면 아는 거야 — 그건 모른다고 하지 말고 그대로 알려줘. (단 목록에 없는 건 지어내지 마)
 - 모르는 건 절대 아는 척하지 마. 밈·드립·유행어·특정 사건·모르는 인물처럼 확실하지 않은 건
   솔직하게 "그건 잘 모르겠는데?"라고 해. "당연히 알지!" 해놓고 바로 "근데 그게 뭔데?" 처럼
   앞뒤 안 맞게 굴지 마. 말투를 따라가더라도 없는 사실을 지어내면 안 돼.
@@ -53,6 +55,18 @@ def build_facts(report: AnalysisReport) -> str:
         f"{c.category} {won(c.week_amount)}" for c in r.categories if c.week_amount > 0
     ) or "거의 없음"
     subs = ", ".join(f"{s['merchant']}({won(s['amount'])})" for s in r.subscriptions)
+
+    def _tx_line(t: dict) -> str:
+        mmdd = t["date"].replace("-", "/")
+        if t["type"] == "transfer":
+            tag = "받음" if t.get("dir") == "in" else "보냄"
+            return f"  {mmdd} {t['merchant']} {won(t['amount'])} (송금 {tag})"
+        if t["type"] == "income":
+            return f"  {mmdd} {t['merchant']} {won(t['amount'])} (소득)"
+        return f"  {mmdd} {t['merchant']} · {t['category']} {won(t['amount'])}"
+
+    tx_rows = (r.month_tx or [])[:150]
+    tx_list = "\n".join(_tx_line(t) for t in tx_rows) or "  (내역 없음)"
     return "\n".join([
         f"- 오늘: {r.today}",
         f"- 이번 달 총 지출: {won(r.month_expense)} (지난달 동기간 {won(r.last_month_expense)})",
@@ -65,6 +79,7 @@ def build_facts(report: AnalysisReport) -> str:
         f"- 카테고리별 이번 주(최근7일): {cats_week}",
         f"- 구독 {len(r.subscriptions)}개: {subs}",
         f"- 배달: 이번주 {won(r.delivery_week)} (평소 {won(r.delivery_baseline_week_avg)})",
+        f"- 이번 달 개별 거래 내역({len(tx_rows)}건) — '무슨 매장? 언제 얼마?' 상세 질문은 여기서 찾아 답해:\n{tx_list}",
     ])
 
 

@@ -99,6 +99,8 @@ class AnalysisReport:
     delivery_week: float = 0.0           # 최근 7일 배달 지출
     delivery_baseline_week_avg: float = 0.0
     settlement: dict = field(default_factory=dict)  # 친구 송금 정산 요약
+    category_merchants: dict = field(default_factory=dict)  # 카테고리별 이번 달 가맹점
+    month_tx: list = field(default_factory=list)  # 이번 달 개별 거래 전체(LLM 상세답변용)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -235,6 +237,24 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
     for c, delta in net_now.items():
         cat_month[c] = max(0.0, cat_month.get(c, 0.0) + delta)
 
+    # 카테고리별 이번 달 가맹점 (예: "여가에 뭐 썼어?" 답변용)
+    _cat_merch: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for t in month_exps:
+        _cat_merch[t.category][t.merchant] += t.amount
+    category_merchants: dict[str, list[dict]] = {
+        c: [{"merchant": m, "amount": round(a)}
+            for m, a in sorted(mm.items(), key=lambda x: -x[1])[:6]]
+        for c, mm in _cat_merch.items()
+    }
+
+    # 이번 달 개별 거래 전체 (LLM 이 '무슨 매장? 언제 얼마?' 상세 질문에 답하도록)
+    month_tx = [
+        {"date": t.tx_date.isoformat()[5:], "merchant": t.merchant, "category": t.category,
+         "amount": round(t.amount), "type": t.tx_type, "dir": t.direction}
+        for t in txs if first <= t.tx_date <= today
+    ]
+    month_tx.sort(key=lambda x: x["date"], reverse=True)
+
     # 송금 정산 요약(이번 달) + 미해결 사람 수
     from server.services.transfers import get_rules, person_key, person_transfers
     _rules = get_rules(session, user_id)
@@ -342,4 +362,6 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
         delivery_week=round(delivery_week),
         delivery_baseline_week_avg=round(delivery_base),
         settlement=settlement,
+        category_merchants=category_merchants,
+        month_tx=month_tx,
     )
