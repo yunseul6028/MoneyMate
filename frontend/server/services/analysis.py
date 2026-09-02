@@ -16,7 +16,7 @@ from __future__ import annotations
 import calendar
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -45,6 +45,25 @@ def month_bounds(d: date) -> tuple[date, date]:
 
 def _is_delivery(merchant: str) -> bool:
     return any(k in merchant for k in DELIVERY_KEYWORDS)
+
+
+# 거래엔 시각(시)이 없어 카테고리로 그럴듯한 시간대를 부여(데모). 충동성 큰 소비(쇼핑·여가·배달)는 저녁/밤 쪽.
+_CAT_HOUR = {
+    "식음료": 19, "카페": 15, "교통": 8, "쇼핑": 20, "생활/뷰티": 16, "교육": 14,
+    "의료": 11, "구독": 23, "여행": 12, "여가": 21, "기타": 20,
+}
+
+
+def _tod_bucket(h: int) -> str:
+    if 5 <= h <= 10:
+        return "아침"
+    if 11 <= h <= 13:
+        return "점심"
+    if 14 <= h <= 17:
+        return "오후"
+    if 18 <= h <= 21:
+        return "저녁"
+    return "밤"
 
 
 def _sum(txs: list[Transaction]) -> float:
@@ -101,6 +120,7 @@ class AnalysisReport:
     settlement: dict = field(default_factory=dict)  # 친구 송금 정산 요약
     category_merchants: dict = field(default_factory=dict)  # 카테고리별 이번 달 가맹점
     month_tx: list = field(default_factory=list)  # 이번 달 개별 거래 전체(LLM 상세답변용)
+    time_of_day: dict = field(default_factory=dict)  # 시간대별 소비 + 지금 시간대
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -255,6 +275,19 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
     ]
     month_tx.sort(key=lambda x: x["date"], reverse=True)
 
+    # 시간대별 이번 달 소비 + 지금 시간대(실시간). '저녁에 과소비' 같은 패턴 인지용.
+    _tod: dict[str, float] = defaultdict(float)
+    for t in month_exps:
+        _tod[_tod_bucket(_CAT_HOUR.get(t.category, 20))] += t.amount
+    _tod_total = sum(_tod.values()) or 1.0
+    _peak = max(_tod, key=_tod.get) if _tod else None
+    time_of_day = {
+        "buckets": {k: round(v) for k, v in _tod.items()},
+        "peak": _peak,
+        "peak_share": round(_tod[_peak] / _tod_total, 2) if _peak else 0.0,
+        "now": _tod_bucket(datetime.now().hour),
+    }
+
     # 송금 정산 요약(이번 달) + 미해결 사람 수
     from server.services.transfers import get_rules, person_key, person_transfers
     _rules = get_rules(session, user_id)
@@ -364,4 +397,5 @@ def analyze(session: Session, user_id: int, today: date) -> AnalysisReport:
         settlement=settlement,
         category_merchants=category_merchants,
         month_tx=month_tx,
+        time_of_day=time_of_day,
     )

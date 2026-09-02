@@ -116,13 +116,21 @@ def simulate_and_explain(
     fallback = _fallback_message(sim)
     if not llm.available:
         return {"reply": fallback, "simulation": sim}
-    facts = "\n".join([
+    facts_lines = [
         f"- 구매액: {won(sim['amount'])}",
         f"- 남은 생활비: {won(sim['before_remaining'])} → {won(sim['after_remaining'])}",
         f"- 다음 카드값: {won(sim['before_card'])} → {won(sim['after_card'])}",
         f"- 남은 {sim['days_left']}일, 구매 후 하루 여유 {won(sim['daily_after'])}",
         f"- 판정: {sim['level']}",
-    ])
+    ]
+    # 시간대 넛지: 지금이 이 사람 과소비 시간대면 '재워두기' 제안을 부드럽게
+    tod = report.time_of_day or {}
+    if tod.get("now") and tod.get("now") == tod.get("peak") and tod.get("peak_share", 0) >= 0.3:
+        facts_lines.append(
+            f"- 참고(시간대): 지금은 '{tod['now']}'인데, 이 사람은 {tod['peak']} 시간대에 소비가 제일 많은 편이야. "
+            f"답 끝에 '{tod['now']}엔 소비가 좀 느는 편이더라, 급한 거 아니면 하루 재워두고 다시 봐도 좋아' 처럼 부드럽게 한마디 얹어줘(강요 X)."
+        )
+    facts = "\n".join(facts_lines)
     prompt = (
         f'[사용자 질문]\n{user_message}\n\n'
         f"[계산 결과 — 이 숫자만 사용]\n{facts}\n\n"
