@@ -140,6 +140,18 @@ def _style_hint(sub) -> str:
     )
 
 
+def _extract_name(text: str) -> str:
+    """'나 damo 라고 해줘' → 'damo'. 자연스러운 문장에서 이름만 뽑는다."""
+    s = (text or "").strip()
+    s = re.sub(r"^(내\s*이름은|제\s*이름은|나는|난|나|저는|저)\s+", "", s)  # 앞머리(공백 필수)
+    s = re.sub(r"\s*(이?라고)\s*(불러줘|불러|해줘|해|부르면\s*돼|불러주라|불러줄래).*$", "", s)  # ~라고 해줘
+    m = re.sub(r"(이에요|예요|입니다|이야|야)$", "", s)  # ~야/~예요 (짧은 이름은 보호)
+    if len(m.strip()) >= 2:
+        s = m
+    s = s.strip(" .!~,'\"")
+    return s[:40] or "친구"
+
+
 def _parse_budget(text: str):
     a = parse_amount(text or "")
     if a:
@@ -204,8 +216,13 @@ def _send_holds(session, chat_id, uid) -> None:
 
 
 def _handle_onboarding(session, sub, chat_id, text) -> None:
+    if (text or "").startswith("/start"):  # 온보딩 중 재시작
+        sub.onb_step = "name"
+        session.flush()
+        send_message(chat_id, "다시 시작할게! 널 뭐라고 부를까? 😊")
+        return
     if sub.onb_step == "name":
-        name = (text or "").strip()[:80] or "친구"
+        name = _extract_name(text)
         u = session.get(User, sub.user_id)
         if u:
             u.name = name
