@@ -141,15 +141,33 @@ def _style_hint(sub) -> str:
 
 
 def _extract_name(text: str) -> str:
-    """'나 damo 라고 해줘' → 'damo'. 자연스러운 문장에서 이름만 뽑는다."""
-    s = (text or "").strip()
-    s = re.sub(r"^(내\s*이름은|제\s*이름은|나는|난|나|저는|저)\s+", "", s)  # 앞머리(공백 필수)
-    s = re.sub(r"\s*(이?라고)\s*(불러줘|불러|해줘|해|부르면\s*돼|불러주라|불러줄래).*$", "", s)  # ~라고 해줘
-    m = re.sub(r"(이에요|예요|입니다|이야|야)$", "", s)  # ~야/~예요 (짧은 이름은 보호)
+    """'나를 데모라고 불러주면 좋을것 같앙' → '데모'. LLM 로 이름만 추출(폴백=규칙)."""
+    raw = (text or "").strip()
+    if not raw:
+        return "친구"
+    llm = get_llm()
+    if llm.available:
+        try:
+            out = llm.chat(
+                "사용자 문장에서 그 사람이 불리고 싶어하는 이름/별명만 한 단어로 추출해. "
+                "설명·따옴표·문장 없이 이름만 출력해. "
+                "예: '나를 데모라고 불러줘'→데모, '나는 코니야'→코니, 'damo'→damo",
+                f"문장: {raw}\n이름:",
+                temperature=0.0,
+                max_tokens=12,
+            ).strip()
+            out = out.strip(" .!~,'\"\n").splitlines()[0].strip() if out else ""
+            if out and len(out) <= 40:
+                return out
+        except Exception:
+            pass
+    # 폴백: 규칙 기반
+    s = re.sub(r"^(내\s*이름은|제\s*이름은|나를|나는|난|나|저를|저는|저)\s*", "", raw)
+    s = re.sub(r"\s*(이?라고)\s*(불러[가-힣]*|해[가-힣]*|부르[가-힣]*).*$", "", s)
+    m = re.sub(r"(이에요|예요|입니다|이야|야)$", "", s)
     if len(m.strip()) >= 2:
         s = m
-    s = s.strip(" .!~,'\"")
-    return s[:40] or "친구"
+    return s.strip(" .!~,'\"")[:40] or "친구"
 
 
 def _parse_budget(text: str):
