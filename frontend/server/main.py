@@ -50,6 +50,7 @@ def _migrate() -> None:
         "ALTER TABLE telegram_subscribers ADD COLUMN user_id INTEGER",
         "ALTER TABLE telegram_subscribers ADD COLUMN onb_step VARCHAR(10) DEFAULT ''",
         "ALTER TABLE telegram_subscribers ADD COLUMN samples JSON",
+        "ALTER TABLE telegram_subscribers ADD COLUMN history JSON",
     ]
     for stmt in stmts:
         try:

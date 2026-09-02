@@ -157,6 +157,12 @@ def _style_hint(sub) -> str:
     )
 
 
+def _hist_add(sub, role: str, text: str) -> None:
+    h = list(sub.history or [])
+    h.append({"role": role, "text": (text or "")[:400]})
+    sub.history = h[-10:]  # 재할당해야 JSON 변경 인식
+
+
 def _extract_name(text: str) -> str:
     """'나를 데모라고 불러주면 좋을것 같앙' → '데모'. LLM 로 이름만 추출(폴백=규칙)."""
     raw = (text or "").strip()
@@ -309,17 +315,25 @@ def _handle_onboarding(session, sub, chat_id, text) -> None:
 
 
 def _handle_text(session, uid, sub, chat_id, text) -> None:
+    prior = list(sub.history or [])  # 현재 메시지 '이전' 대화 (맥락)
+    _hist_add(sub, "user", text)
+
     if text.startswith("/start"):
-        send_message(chat_id, f"{WELCOME}\n\n뭐든 물어봐 😊", keyboard=_REMOVE_KB)
+        msg = f"{WELCOME}\n\n뭐든 물어봐 😊"
+        send_message(chat_id, msg, keyboard=_REMOVE_KB)
+        _hist_add(sub, "ai", msg)
         return
     if text in ("💰 남은 돈", "남은 돈", "/balance", "/남은돈"):
         _send_balance(session, chat_id, uid)
+        _hist_add(sub, "ai", "(오늘 쓸 수 있는 돈 안내함)")
         return
     if text in ("🤔 고민함", "고민함", "/holds", "/고민함"):
         _send_holds(session, chat_id, uid)
+        _hist_add(sub, "ai", "(고민함 목록 보여줌)")
         return
     if text in ("📊 이번 달", "이번 달", "/month", "/이번달"):
         _send_month(session, chat_id, uid)
+        _hist_add(sub, "ai", "(이번 달 요약 보여줌)")
         return
 
     llm = get_llm()
@@ -337,17 +351,22 @@ def _handle_text(session, uid, sub, chat_id, text) -> None:
                     {"text": "하루 재워둘래 😴", "callback_data": f"hold|{amount}|{item[:32]}"},
                 ]]
             send_message(chat_id, res["reply"], buttons=buttons)
+            _hist_add(sub, "ai", res["reply"])
             return
 
     tokens = infer_ack_tokens(text)
     if tokens:
         res = decide(session, uid, report, acknowledged=tokens, now=clock.now())
         if res.should_speak:
-            send_message(chat_id, speak(llm, res, report))
+            reply = speak(llm, res, report)
+            send_message(chat_id, reply)
+            _hist_add(sub, "ai", reply)
             return
 
-    # 일반 질문 → 말투 미러링해서 답변
-    send_message(chat_id, chat_answer(llm, report, text, style_hint=_style_hint(sub)))
+    # 일반 질문 → 최근 대화 맥락 + 말투 미러링해서 답변
+    reply = chat_answer(llm, report, text, style_hint=_style_hint(sub), history=prior)
+    send_message(chat_id, reply)
+    _hist_add(sub, "ai", reply)
 
 
 def _handle_callback(session, uid, cb) -> None:

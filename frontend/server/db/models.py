@@ -191,6 +191,8 @@ class TelegramSubscriber(Base):
     onb_step: Mapped[str] = mapped_column(String(10), default="")
     # 말투 학습용: 사용자가 최근에 보낸 메시지 몇 개(최근 것 유지). 봇 답변 톤 미러링.
     samples: Mapped[list] = mapped_column(JSON, default=list)
+    # 대화 맥락 유지용: 최근 대화 턴 [{role, text}] (사용자↔봇). 짧은 답('아니/응') 해석에 필요.
+    history: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 

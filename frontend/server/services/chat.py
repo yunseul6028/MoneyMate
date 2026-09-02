@@ -97,17 +97,37 @@ def build_facts(report: AnalysisReport) -> str:
     ])
 
 
+def _history_block(history: list | None) -> str:
+    if not history:
+        return ""
+    lines = []
+    for h in history[-8:]:
+        who = "사용자" if h.get("role") == "user" else "너(MoneyMate)"
+        lines.append(f"{who}: {h.get('text', '')}")
+    return (
+        "[최근 대화 흐름 — 맥락을 이어서 답해. "
+        "'아니/응/맞아' 같은 짧은 답은 바로 위 '네가 한 질문'에 대한 대답이야. 흐름을 놓치지 마]\n"
+        + "\n".join(lines)
+        + "\n\n"
+    )
+
+
 def chat_answer(
-    llm: LLMProvider, report: AnalysisReport, message: str, style_hint: str = ""
+    llm: LLMProvider,
+    report: AnalysisReport,
+    message: str,
+    style_hint: str = "",
+    history: list | None = None,
 ) -> str:
     if not llm.available:
         return ("지금은 AI 연결이 안 돼서 자세한 답은 어려워 😅 "
                 "위 대시보드 숫자를 참고해줘! (백엔드에 LLM 키를 넣으면 대화가 살아나)")
     system = CHAT_SYSTEM + (("\n\n" + style_hint) if style_hint else "")
     user = (
+        f"{_history_block(history)}"
         f"[참고 데이터 — 필요한 것만 골라 써]\n{build_facts(report)}\n\n"
-        f"[질문]\n{message}\n\n"
-        "질문에만 맥락 맞게 짧게 답해줘. 관련 없는 숫자는 끌어오지 마."
+        f"[지금 사용자 메시지]\n{message}\n\n"
+        "위 대화 흐름을 이어서, 맥락 맞게 짧게 답해줘. 관련 없는 숫자는 끌어오지 마."
     )
     try:
         return llm.chat(system, user, temperature=0.7, max_tokens=250) or \
