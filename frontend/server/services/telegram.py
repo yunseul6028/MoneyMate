@@ -412,18 +412,51 @@ def process_update(session: Session, update: dict) -> None:
     _handle_text(session, sub.user_id, sub, chat_id, text)
 
 
+def nudge_user(session: Session, user_id: int) -> int:
+    """한 사용자에게 proactive 판단 후, 말할 게 있을 때만 push. (이벤트 기반)"""
+    subs = session.query(TelegramSubscriber).filter(TelegramSubscriber.user_id == user_id).all()
+    if not subs:
+        return 0
+    report = analyze(session, user_id, clock.today())
+    res = decide(session, user_id, report, acknowledged=set(), now=clock.now())
+    if not res.should_speak:
+        return 0
+    msg = speak(get_llm(), res, report)
+    for sub in subs:
+        send_message(sub.chat_id, msg)
+    return len(subs)
+
+
 def nudge_all(session: Session) -> int:
-    """먼저 말 걸기 — 온보딩 끝난 사용자별로 proactive 판단 후 push."""
-    sent = 0
+    """온보딩 끝난 모든 사용자 대상 proactive push (수동 테스트용)."""
     subs = (
         session.query(TelegramSubscriber)
         .filter(TelegramSubscriber.user_id.isnot(None), TelegramSubscriber.onb_step == "done")
         .all()
     )
+    return sum(nudge_user(session, sub.user_id) for sub in {s.user_id: s for s in subs}.values())
+
+
+def simulate_event(session: Session) -> dict:
+    """데모: 온보딩된 사용자에게 '방금 큰 소비가 발생' 이벤트를 주입 → 봇이 event-driven 으로 반응.
+
+    실서비스면 은행/카드 거래가 들어올 때 이 자리에서 nudge_user 를 호출하면 된다.
+    """
+    from server.core import categories as C
+    from server.db.models import Transaction
+
+    subs = (
+        session.query(TelegramSubscriber)
+        .filter(TelegramSubscriber.user_id.isnot(None), TelegramSubscriber.onb_step == "done")
+        .all()
+    )
+    pushed = 0
     for sub in subs:
-        report = analyze(session, sub.user_id, clock.today())
-        res = decide(session, sub.user_id, report, acknowledged=set(), now=clock.now())
-        if res.should_speak:
-            send_message(sub.chat_id, f"👀 {speak(get_llm(), res, report)}")
-            sent += 1
-    return sent
+        session.add(Transaction(
+            user_id=sub.user_id, tx_date=clock.today(), merchant="배달의민족",
+            amount=28_000, category=C.FOOD, tx_type=C.EXPENSE,
+            payment_method=C.CREDIT, direction="out", category_source="seed",
+        ))
+        session.flush()
+        pushed += nudge_user(session, sub.user_id)
+    return {"subscribers": len(subs), "pushed": pushed}

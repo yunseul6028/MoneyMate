@@ -455,10 +455,18 @@ def telegram_set_webhook(request: Request) -> dict:
 @app.get("/api/telegram/nudge")
 @app.post("/api/telegram/nudge")
 def telegram_nudge() -> dict:
-    """먼저 말 걸기 — proactive 판단 후 구독자에게 push (Vercel Cron 이 호출)."""
+    """먼저 말 걸기(수동) — 지금 상태로 proactive 판단 후 구독자에게 push."""
     with session_scope() as s:
         n = telegram_svc.nudge_all(s)
     return {"ok": True, "sent_to": n}
+
+
+@app.get("/api/telegram/simulate-event")
+@app.post("/api/telegram/simulate-event")
+def telegram_simulate_event() -> dict:
+    """데모: '방금 큰 소비 발생' 이벤트를 주입 → 봇이 event-driven 으로 반응(필요할 때만)."""
+    with session_scope() as s:
+        return {"ok": True, **telegram_svc.simulate_event(s)}
 
 
 @app.post("/api/ingest")
