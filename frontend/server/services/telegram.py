@@ -33,11 +33,28 @@ WELCOME = (
     "가계부 안 써도, 내가 소비 보고 있다가 필요할 때 먼저 말 걸어줄게."
 )
 
-_MENU = {
-    "keyboard": [["💰 남은 돈", "🤔 고민함"], ["📊 이번 달"]],
-    "resize_keyboard": True,
-}
-_MENU_TEXTS = {"💰 남은 돈", "🤔 고민함", "📊 이번 달"}
+# 하단 추천 버튼(reply keyboard)은 쓰지 않음 — 순수 대화형. 기존 키보드는 제거해서 숨김.
+_REMOVE_KB = {"remove_keyboard": True}
+_MENU_TEXTS = {"남은 돈", "고민함", "이번 달"}
+
+# 봇 답변에서 이모지/이모티콘 제거 (LLM 특유의 이모지 남발 + 내가 넣은 장식 이모지 모두)
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F300-\U0001FAFF"  # 픽토그램·이모티콘·교통·보충기호
+    "\U00002600-\U000027BF"  # 기타기호·딩벳 (☕❤✅ 등)
+    "\U0001F1E6-\U0001F1FF"  # 국기
+    "\U00002B00-\U00002BFF"  # 별·화살표류 (⭐ 등)
+    "\U0000FE0F\U0000200D"   # 변형 선택자·ZWJ
+    "]",
+    flags=re.UNICODE,
+)
+
+
+def _clean(text: str) -> str:
+    s = _EMOJI_RE.sub("", text or "")
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r" *\n *", "\n", s)
+    return s.strip()
 
 
 # ---------------------------------------------------------------- Bot API
@@ -59,7 +76,7 @@ def _call(method: str, payload: dict) -> dict:
 def send_message(chat_id, text: str, buttons=None, keyboard=None) -> dict:
     payload = {
         "chat_id": chat_id,
-        "text": text,
+        "text": _clean(text),
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
@@ -171,9 +188,27 @@ def _extract_name(text: str) -> str:
 
 
 def _parse_budget(text: str):
-    a = parse_amount(text or "")
+    a = parse_amount(text or "")  # "50만원", "50" 같은 명확한 숫자 패턴
     if a:
         return a
+    # LLM 폴백: "오십만원", "한 오십", "반 백만원" 같은 말도 원 단위로
+    llm = get_llm()
+    if llm.available:
+        try:
+            out = llm.chat(
+                "사용자가 말한 '한 달 예산'을 원(KRW) 단위 정수 하나로만 변환해. "
+                "설명·단위·기호·콤마 없이 숫자만 출력해. "
+                "예: '오십만원'→500000, '한 오십'→500000, '백만원 정도'→1000000. 금액 못 알아보면 0.",
+                f"문장: {text}\n숫자:",
+                temperature=0.0,
+                max_tokens=12,
+            ).strip()
+            n = int(re.sub(r"[^\d]", "", out or "") or "0")
+            if 10_000 <= n <= 100_000_000:
+                return n
+        except Exception:
+            pass
+    # 최후 폴백: 숫자만 긁기
     digits = re.sub(r"[^\d]", "", text or "")
     if digits:
         n = int(digits)
@@ -269,13 +304,13 @@ def _handle_onboarding(session, sub, chat_id, text) -> None:
         f"좋아 {nm}! 이번 달 {friendly_won(budget)}으로 시작하자 👀\n"
         f"아래 <b>💰 남은 돈</b>에서 지금 쓸 수 있는 돈 보고, "
         f"<b>'20만원 기타 사도 될까?'</b> 처럼 물어봐도 돼!",
-        keyboard=_MENU,
+        keyboard=_REMOVE_KB,
     )
 
 
 def _handle_text(session, uid, sub, chat_id, text) -> None:
     if text.startswith("/start"):
-        send_message(chat_id, f"{WELCOME}\n\n뭐든 물어봐 😊", keyboard=_MENU)
+        send_message(chat_id, f"{WELCOME}\n\n뭐든 물어봐 😊", keyboard=_REMOVE_KB)
         return
     if text in ("💰 남은 돈", "남은 돈", "/balance", "/남은돈"):
         _send_balance(session, chat_id, uid)
