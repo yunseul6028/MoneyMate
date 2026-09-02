@@ -174,6 +174,20 @@ class PurchaseHold(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class TelegramSubscriber(Base):
+    """텔레그램 봇을 시작한 사용자(chat_id). '먼저 말 걸기' push 대상.
+
+    MVP: 모두 데모 사용자 데이터를 공유. (추후 chat_id ↔ user 매핑으로 개인화)
+    """
+
+    __tablename__ = "telegram_subscribers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
 class AgentEvent(Base):
     """Agent 가 사용자에게 '먼저 말을 건' 기록.
 

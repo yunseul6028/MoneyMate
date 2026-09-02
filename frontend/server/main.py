@@ -11,7 +11,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -31,6 +31,7 @@ from server.services.classifier import record_correction
 from server.services import transfers as transfers_svc
 from server.services.dashboard import build_dashboard
 from server.services import holds as holds_svc
+from server.services import telegram as telegram_svc
 from server.services.ingest import ingest_transactions
 from server.services import purchases as purchases_svc
 from server.services.simulation import (
@@ -402,6 +403,42 @@ def decide_hold(hold_id: int, inp: HoldDecideIn) -> dict:
         if h is None:
             return {"ok": False, "error": "not_found_or_invalid"}
         return {"ok": True, "status": h.status, "amount": round(h.amount)}
+
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request) -> dict:
+    """텔레그램 봇 웹훅 — 메시지/버튼을 받아 기존 로직으로 응답."""
+    from server.config import settings
+
+    secret = settings.telegram_webhook_secret
+    if secret and request.headers.get("X-Telegram-Bot-Api-Secret-Token") != secret:
+        return {"ok": False}
+    try:
+        update = await request.json()
+    except Exception:
+        return {"ok": False}
+    with session_scope() as s:
+        try:
+            telegram_svc.process_update(s, update)
+        except Exception:
+            pass  # 봇 처리 실패해도 200 반환(텔레그램 재시도 폭주 방지)
+    return {"ok": True}
+
+
+@app.get("/api/telegram/set-webhook")
+def telegram_set_webhook(request: Request) -> dict:
+    """이 배포 URL 로 봇 웹훅을 등록(토큰 env 설정 후 한 번 열면 됨)."""
+    base = str(request.base_url).rstrip("/")
+    return telegram_svc.set_webhook(base)
+
+
+@app.get("/api/telegram/nudge")
+@app.post("/api/telegram/nudge")
+def telegram_nudge() -> dict:
+    """먼저 말 걸기 — proactive 판단 후 구독자에게 push (Vercel Cron 이 호출)."""
+    with session_scope() as s:
+        n = telegram_svc.nudge_all(s)
+    return {"ok": True, "sent_to": n}
 
 
 @app.post("/api/ingest")

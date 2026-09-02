@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     def _resolve_database_url(cls, v: str) -> str:
         return _normalize_db_url(v)
 
+    # --- Telegram 봇 ---
+    telegram_bot_token: str = ""          # @BotFather 에서 발급 (Vercel env 에 넣기)
+    telegram_webhook_secret: str = ""     # (선택) 웹훅 검증용 시크릿
+
     # --- 앱의 '오늘' (날짜 감각의 단일 소스) ---
     # live_date=False: demo_today 로 고정(데모·재현성). True: 실제 date.today() 사용.
     # 앱 전역은 settings 를 직접 보지 말고 app.core.clock 의 today()/now() 를 쓴다.
