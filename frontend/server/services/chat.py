@@ -63,17 +63,20 @@ def build_facts(report: AnalysisReport) -> str:
     ])
 
 
-def chat_answer(llm: LLMProvider, report: AnalysisReport, message: str) -> str:
+def chat_answer(
+    llm: LLMProvider, report: AnalysisReport, message: str, style_hint: str = ""
+) -> str:
     if not llm.available:
         return ("지금은 AI 연결이 안 돼서 자세한 답은 어려워 😅 "
                 "위 대시보드 숫자를 참고해줘! (백엔드에 LLM 키를 넣으면 대화가 살아나)")
+    system = CHAT_SYSTEM + (("\n\n" + style_hint) if style_hint else "")
     user = (
         f"[참고 데이터 — 필요한 것만 골라 써]\n{build_facts(report)}\n\n"
         f"[질문]\n{message}\n\n"
         "질문에만 맥락 맞게 짧게 답해줘. 관련 없는 숫자는 끌어오지 마."
     )
     try:
-        return llm.chat(CHAT_SYSTEM, user, temperature=0.7, max_tokens=250) or \
+        return llm.chat(system, user, temperature=0.7, max_tokens=250) or \
             "음, 다시 한 번 말해줄래?"
     except Exception as e:
         return f"앗 지금 잠깐 연결이 불안정해 ({type(e).__name__}). 조금 있다 다시 물어봐줘!"

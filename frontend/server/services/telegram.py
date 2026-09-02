@@ -1,7 +1,9 @@
-"""텔레그램 봇 — 기존 분석·시뮬·정산·고민함 로직을 '대화'로 제공.
+"""텔레그램 봇 — 기존 분석·시뮬·정산·고민함 로직을 '대화'로.
 
-서버리스 웹훅 방식(long-polling X). httpx 로 Bot API 를 직접 호출한다.
-MVP: 모든 사용자가 데모 사용자 데이터를 공유(합성 데이터 데모).
+- 서버리스 웹훅(long-polling X). httpx 로 Bot API 직접 호출.
+- 멀티유저: 각 텔레그램 사용자가 자기만의 User + 데모 원장(시드)을 가짐.
+- 온보딩: 처음 시작하면 이름·예산을 대화로 물어봄.
+- 말투 학습: 사용자의 최근 메시지를 저장해, 답변 톤을 그 사람처럼 미러링.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ from server.agents.critic import infer_ack_tokens
 from server.agents.proactive import decide
 from server.core import clock
 from server.core.format import friendly_won
-from server.db.models import TelegramSubscriber, User
+from server.db.models import TelegramSubscriber, User, UserProfile
 from server.llm.factory import get_llm
 from server.services import holds as holds_svc
 from server.services.analysis import analyze
@@ -28,16 +30,14 @@ from server.services.simulation import (
 
 WELCOME = (
     "안녕! 나 <b>MoneyMate</b> 💸\n"
-    "가계부 안 써도, 내가 소비 보고 있다가 필요할 때 먼저 말 걸어줄게.\n\n"
-    "이렇게 해봐:\n"
-    "· <b>20만원 기타 사도 될까?</b> — 지갑 사정 계산해서 답해줄게\n"
-    "· 아래 버튼으로 <b>남은 돈</b>·<b>고민함</b>도 바로 볼 수 있어"
+    "가계부 안 써도, 내가 소비 보고 있다가 필요할 때 먼저 말 걸어줄게."
 )
 
 _MENU = {
     "keyboard": [["💰 남은 돈", "🤔 고민함"], ["📊 이번 달"]],
     "resize_keyboard": True,
 }
+_MENU_TEXTS = {"💰 남은 돈", "🤔 고민함", "📊 이번 달"}
 
 
 # ---------------------------------------------------------------- Bot API
@@ -52,7 +52,7 @@ def _call(method: str, payload: dict) -> dict:
             f"https://api.telegram.org/bot{token}/{method}", json=payload, timeout=15
         )
         return r.json()
-    except Exception as e:  # 네트워크 실패해도 웹훅은 200 반환
+    except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
@@ -91,17 +91,64 @@ def set_webhook(base_url: str) -> dict:
     return res
 
 
-# ---------------------------------------------------------------- helpers
-def _demo_uid(session: Session) -> int:
-    u = session.query(User).order_by(User.id.asc()).first()
-    return u.id if u else 1
+# ---------------------------------------------------------------- 사용자/온보딩/말투
+def _ensure_user(session: Session, chat_id, name_hint):
+    """chat_id → 그 사용자 전용 구독자/User 확보. 처음이면 생성 + 데모 원장 시드."""
+    from server.providers.mock_provider import MockFinancialDataProvider
 
-
-def _register(session: Session, chat_id, name) -> None:
     cid = str(chat_id)
-    if not session.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == cid).first():
-        session.add(TelegramSubscriber(chat_id=cid, name=name))
+    sub = session.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == cid).first()
+    if sub is None:
+        sub = TelegramSubscriber(chat_id=cid, name=name_hint, samples=[])
+        session.add(sub)
         session.flush()
+    if sub.user_id is None:
+        u = User(name=(name_hint or "친구")[:80])
+        session.add(u)
+        session.flush()
+        session.add(UserProfile(user_id=u.id, monthly_budget=600_000, card_billing_day=14))
+        session.flush()
+        try:
+            MockFinancialDataProvider().sync_transactions(session, u.id)
+        except Exception:
+            pass
+        sub.user_id = u.id
+        sub.onb_step = "name"
+        session.flush()
+        return sub, True
+    return sub, False
+
+
+def _record_sample(sub, text: str) -> None:
+    t = (text or "").strip()
+    if not t or t.startswith("/") or len(t) > 200 or t in _MENU_TEXTS:
+        return
+    samples = list(sub.samples or [])
+    samples.append(t)
+    sub.samples = samples[-6:]  # 재할당해야 JSON 컬럼 변경 인식
+
+
+def _style_hint(sub) -> str:
+    samples = [s for s in (sub.samples or []) if s][-6:]
+    if len(samples) < 2:
+        return ""
+    joined = "\n".join(f"- {s}" for s in samples)
+    return (
+        "[이 사용자의 평소 말투 — 아래 예시의 어투·어미·반말체·이모지 사용·문장 길이를 "
+        "비슷하게 흉내 내서 답해. 마치 사용자가 스스로에게 혼잣말하듯 편하게. "
+        "단, 내용과 숫자는 규칙대로 정확히 지켜.]\n" + joined
+    )
+
+
+def _parse_budget(text: str):
+    a = parse_amount(text or "")
+    if a:
+        return a
+    digits = re.sub(r"[^\d]", "", text or "")
+    if digits:
+        n = int(digits)
+        return n * 10_000 if n < 10_000 else n  # "50"→50만원, "500000"→그대로
+    return None
 
 
 def _hold_item_label(msg: str, amount: int) -> str:
@@ -156,11 +203,44 @@ def _send_holds(session, chat_id, uid) -> None:
         )
 
 
-def _handle_text(session, chat_id, text) -> None:
-    uid = _demo_uid(session)
+def _handle_onboarding(session, sub, chat_id, text) -> None:
+    if sub.onb_step == "name":
+        name = (text or "").strip()[:80] or "친구"
+        u = session.get(User, sub.user_id)
+        if u:
+            u.name = name
+        sub.name = name
+        sub.onb_step = "budget"
+        session.flush()
+        send_message(
+            chat_id,
+            f"반가워 {name}! 💜\n이번 달엔 얼마 정도 쓸 생각이야? 이 금액에서 쓸 때마다 빼서 "
+            f"'남은 돈'을 보여줄게. (예: <b>50만원</b>)",
+        )
+        return
+    # budget
+    budget = _parse_budget(text)
+    if not budget:
+        send_message(chat_id, "숫자로 알려줄래? 예: <b>50만원</b> 또는 <b>500000</b>")
+        return
+    prof = session.query(UserProfile).filter(UserProfile.user_id == sub.user_id).first()
+    if prof:
+        prof.monthly_budget = budget
+    sub.onb_step = "done"
+    session.flush()
+    nm = sub.name or "친구"
+    send_message(
+        chat_id,
+        f"좋아 {nm}! 이번 달 {friendly_won(budget)}으로 시작하자 👀\n"
+        f"아래 <b>💰 남은 돈</b>에서 지금 쓸 수 있는 돈 보고, "
+        f"<b>'20만원 기타 사도 될까?'</b> 처럼 물어봐도 돼!",
+        keyboard=_MENU,
+    )
 
+
+def _handle_text(session, uid, sub, chat_id, text) -> None:
     if text.startswith("/start"):
-        send_message(chat_id, WELCOME, keyboard=_MENU)
+        send_message(chat_id, f"{WELCOME}\n\n뭐든 물어봐 😊", keyboard=_MENU)
         return
     if text in ("💰 남은 돈", "남은 돈", "/balance", "/남은돈"):
         _send_balance(session, chat_id, uid)
@@ -175,7 +255,6 @@ def _handle_text(session, chat_id, text) -> None:
     llm = get_llm()
     report = analyze(session, uid, clock.today())
 
-    # 구매 질문 → 시뮬레이션 (+ 큰 금액이면 재워두기 버튼)
     if is_purchase_question(text):
         amount = parse_amount(text)
         if amount:
@@ -190,7 +269,6 @@ def _handle_text(session, chat_id, text) -> None:
             send_message(chat_id, res["reply"], buttons=buttons)
             return
 
-    # 맥락 설명 → 코치
     tokens = infer_ack_tokens(text)
     if tokens:
         res = decide(session, uid, report, acknowledged=tokens, now=clock.now())
@@ -198,15 +276,14 @@ def _handle_text(session, chat_id, text) -> None:
             send_message(chat_id, speak(llm, res, report))
             return
 
-    # 일반 질문
-    send_message(chat_id, chat_answer(llm, report, text))
+    # 일반 질문 → 말투 미러링해서 답변
+    send_message(chat_id, chat_answer(llm, report, text, style_hint=_style_hint(sub)))
 
 
-def _handle_callback(session, cb) -> None:
+def _handle_callback(session, uid, cb) -> None:
     data = cb.get("data", "")
     chat_id = cb["message"]["chat"]["id"]
     cb_id = cb["id"]
-    uid = _demo_uid(session)
 
     if data == "buy":
         answer_callback(cb_id, "좋아!")
@@ -235,8 +312,14 @@ def _handle_callback(session, cb) -> None:
 
 def process_update(session: Session, update: dict) -> None:
     if "callback_query" in update:
-        _handle_callback(session, update["callback_query"])
+        cb = update["callback_query"]
+        chat_id = cb.get("message", {}).get("chat", {}).get("id")
+        if chat_id is None:
+            return
+        sub, _ = _ensure_user(session, chat_id, (cb.get("from") or {}).get("first_name"))
+        _handle_callback(session, sub.user_id, cb)
         return
+
     msg = update.get("message") or update.get("edited_message")
     if not msg:
         return
@@ -244,21 +327,33 @@ def process_update(session: Session, update: dict) -> None:
     chat_id = chat.get("id")
     if chat_id is None:
         return
-    _register(session, chat_id, chat.get("first_name"))
+    sub, created = _ensure_user(session, chat_id, chat.get("first_name"))
     text = (msg.get("text") or "").strip()
-    if text:
-        _handle_text(session, chat_id, text)
+
+    if created:
+        send_message(chat_id, f"{WELCOME}\n\n먼저 — 널 뭐라고 부를까? 😊")
+        return
+    if sub.onb_step and sub.onb_step != "done":
+        _handle_onboarding(session, sub, chat_id, text)
+        return
+    if not text:
+        return
+    _record_sample(sub, text)  # 말투 학습
+    _handle_text(session, sub.user_id, sub, chat_id, text)
 
 
 def nudge_all(session: Session) -> int:
-    """먼저 말 걸기 — proactive 판단 후 구독자 전원에게 push (Vercel Cron 용)."""
-    uid = _demo_uid(session)
-    report = analyze(session, uid, clock.today())
-    res = decide(session, uid, report, acknowledged=set(), now=clock.now())
-    if not res.should_speak:
-        return 0
-    msg = speak(get_llm(), res, report)
-    subs = session.query(TelegramSubscriber).all()
+    """먼저 말 걸기 — 온보딩 끝난 사용자별로 proactive 판단 후 push."""
+    sent = 0
+    subs = (
+        session.query(TelegramSubscriber)
+        .filter(TelegramSubscriber.user_id.isnot(None), TelegramSubscriber.onb_step == "done")
+        .all()
+    )
     for sub in subs:
-        send_message(sub.chat_id, f"👀 {msg}")
-    return len(subs)
+        report = analyze(session, sub.user_id, clock.today())
+        res = decide(session, sub.user_id, report, acknowledged=set(), now=clock.now())
+        if res.should_speak:
+            send_message(sub.chat_id, f"👀 {speak(get_llm(), res, report)}")
+            sent += 1
+    return sent

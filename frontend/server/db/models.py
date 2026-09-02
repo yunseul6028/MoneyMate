@@ -185,6 +185,12 @@ class TelegramSubscriber(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     chat_id: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # 이 텔레그램 사용자 전용 데이터(User). 온보딩 때 생성 + 데모 원장 시드.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # 온보딩 상태: "" (미시작) | name | budget | done
+    onb_step: Mapped[str] = mapped_column(String(10), default="")
+    # 말투 학습용: 사용자가 최근에 보낸 메시지 몇 개(최근 것 유지). 봇 답변 톤 미러링.
+    samples: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 

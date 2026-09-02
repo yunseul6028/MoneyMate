@@ -40,8 +40,28 @@ from server.services.simulation import (
     simulate_and_explain,
 )
 
+def _migrate() -> None:
+    """기존 배포 DB(Postgres)에 새 컬럼 보강 — create_all 은 컬럼 추가를 안 함. 있으면 무시."""
+    from sqlalchemy import text
+
+    from server.db.database import engine
+
+    stmts = [
+        "ALTER TABLE telegram_subscribers ADD COLUMN user_id INTEGER",
+        "ALTER TABLE telegram_subscribers ADD COLUMN onb_step VARCHAR(10) DEFAULT ''",
+        "ALTER TABLE telegram_subscribers ADD COLUMN samples JSON",
+    ]
+    for stmt in stmts:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(stmt))
+        except Exception:
+            pass
+
+
 def _seed() -> None:
     init_db()
+    _migrate()
     provider = MockFinancialDataProvider()
     with session_scope() as s:
         provider.ensure_global_rules(s)
