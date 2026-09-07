@@ -11,7 +11,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -31,7 +31,6 @@ from server.services.classifier import record_correction
 from server.services import transfers as transfers_svc
 from server.services.dashboard import build_dashboard
 from server.services import holds as holds_svc
-from server.services import telegram as telegram_svc
 from server.services.ingest import ingest_transactions
 from server.services import purchases as purchases_svc
 from server.services.simulation import (
@@ -40,29 +39,8 @@ from server.services.simulation import (
     simulate_and_explain,
 )
 
-def _migrate() -> None:
-    """기존 배포 DB(Postgres)에 새 컬럼 보강 — create_all 은 컬럼 추가를 안 함. 있으면 무시."""
-    from sqlalchemy import text
-
-    from server.db.database import engine
-
-    stmts = [
-        "ALTER TABLE telegram_subscribers ADD COLUMN user_id INTEGER",
-        "ALTER TABLE telegram_subscribers ADD COLUMN onb_step VARCHAR(10) DEFAULT ''",
-        "ALTER TABLE telegram_subscribers ADD COLUMN samples JSON",
-        "ALTER TABLE telegram_subscribers ADD COLUMN history JSON",
-    ]
-    for stmt in stmts:
-        try:
-            with engine.begin() as conn:
-                conn.execute(text(stmt))
-        except Exception:
-            pass
-
-
 def _seed() -> None:
     init_db()
-    _migrate()
     provider = MockFinancialDataProvider()
     with session_scope() as s:
         provider.ensure_global_rules(s)
@@ -424,56 +402,6 @@ def decide_hold(hold_id: int, inp: HoldDecideIn) -> dict:
         if h is None:
             return {"ok": False, "error": "not_found_or_invalid"}
         return {"ok": True, "status": h.status, "amount": round(h.amount)}
-
-
-@app.post("/api/telegram/webhook")
-async def telegram_webhook(request: Request) -> dict:
-    """텔레그램 봇 웹훅 — 메시지/버튼을 받아 기존 로직으로 응답."""
-    from server.config import settings
-
-    secret = settings.telegram_webhook_secret
-    if secret and request.headers.get("X-Telegram-Bot-Api-Secret-Token") != secret:
-        return {"ok": False}
-    try:
-        update = await request.json()
-    except Exception:
-        return {"ok": False}
-    with session_scope() as s:
-        try:
-            telegram_svc.process_update(s, update)
-        except Exception:
-            pass  # 봇 처리 실패해도 200 반환(텔레그램 재시도 폭주 방지)
-    return {"ok": True}
-
-
-@app.get("/api/telegram/me")
-def telegram_me() -> dict:
-    """봇 공개 정보 + t.me 링크 (배포 URL 확인용)."""
-    return telegram_svc.get_me()
-
-
-@app.get("/api/telegram/set-webhook")
-def telegram_set_webhook(request: Request) -> dict:
-    """이 배포 URL 로 봇 웹훅을 등록(토큰 env 설정 후 한 번 열면 됨)."""
-    base = str(request.base_url).rstrip("/")
-    return telegram_svc.set_webhook(base)
-
-
-@app.get("/api/telegram/nudge")
-@app.post("/api/telegram/nudge")
-def telegram_nudge() -> dict:
-    """먼저 말 걸기(수동) — 지금 상태로 proactive 판단 후 구독자에게 push."""
-    with session_scope() as s:
-        n = telegram_svc.nudge_all(s)
-    return {"ok": True, "sent_to": n}
-
-
-@app.get("/api/telegram/simulate-event")
-@app.post("/api/telegram/simulate-event")
-def telegram_simulate_event() -> dict:
-    """데모: '방금 큰 소비 발생' 이벤트를 주입 → 봇이 event-driven 으로 반응(필요할 때만)."""
-    with session_scope() as s:
-        return {"ok": True, **telegram_svc.simulate_event(s)}
 
 
 @app.post("/api/ingest")

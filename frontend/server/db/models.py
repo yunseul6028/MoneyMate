@@ -174,28 +174,6 @@ class PurchaseHold(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
-class TelegramSubscriber(Base):
-    """텔레그램 봇을 시작한 사용자(chat_id). '먼저 말 걸기' push 대상.
-
-    MVP: 모두 데모 사용자 데이터를 공유. (추후 chat_id ↔ user 매핑으로 개인화)
-    """
-
-    __tablename__ = "telegram_subscribers"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    chat_id: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
-    name: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    # 이 텔레그램 사용자 전용 데이터(User). 온보딩 때 생성 + 데모 원장 시드.
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    # 온보딩 상태: "" (미시작) | name | budget | done
-    onb_step: Mapped[str] = mapped_column(String(10), default="")
-    # 말투 학습용: 사용자가 최근에 보낸 메시지 몇 개(최근 것 유지). 봇 답변 톤 미러링.
-    samples: Mapped[list] = mapped_column(JSON, default=list)
-    # 대화 맥락 유지용: 최근 대화 턴 [{role, text}] (사용자↔봇). 짧은 답('아니/응') 해석에 필요.
-    history: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
-
-
 class AgentEvent(Base):
     """Agent 가 사용자에게 '먼저 말을 건' 기록.
 
