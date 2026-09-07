@@ -94,6 +94,15 @@ def answer_callback(cb_id, text: str | None = None) -> dict:
     return _call("answerCallbackQuery", p)
 
 
+def get_me() -> dict:
+    """봇 정보(getMe) — username 으로 t.me 링크 확인용."""
+    res = _call("getMe", {})
+    u = (res or {}).get("result", {}) if isinstance(res, dict) else {}
+    if u.get("username"):
+        res["link"] = f"https://t.me/{u['username']}"
+    return res
+
+
 def set_webhook(base_url: str) -> dict:
     from server.config import settings
 

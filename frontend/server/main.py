@@ -446,6 +446,12 @@ async def telegram_webhook(request: Request) -> dict:
     return {"ok": True}
 
 
+@app.get("/api/telegram/me")
+def telegram_me() -> dict:
+    """봇 공개 정보 + t.me 링크 (배포 URL 확인용)."""
+    return telegram_svc.get_me()
+
+
 @app.get("/api/telegram/set-webhook")
 def telegram_set_webhook(request: Request) -> dict:
     """이 배포 URL 로 봇 웹훅을 등록(토큰 env 설정 후 한 번 열면 됨)."""
