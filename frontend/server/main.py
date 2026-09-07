@@ -22,7 +22,15 @@ from server.core import categories as C
 from server.core import clock
 from server.core.format import friendly_won
 from server.db.database import init_db, session_scope
-from server.db.models import AgentEvent, PersonRule, Transaction, User, UserProfile
+from server.db.models import (
+    AgentEvent,
+    MerchantRule,
+    PersonRule,
+    PurchaseHold,
+    Transaction,
+    User,
+    UserProfile,
+)
 from server.llm.factory import get_llm
 from server.providers.mock_provider import MockFinancialDataProvider
 from server.services.analysis import analyze
@@ -171,11 +179,13 @@ def dev_event(inp: DevEventIn) -> dict:
 
 @app.post("/api/dev/reset")
 def dev_reset() -> dict:
-    """데모 데이터로 초기화 (거래·사람규칙·에이전트기록 삭제 후 재시드)."""
+    """데모 데이터로 초기화 (거래·사람규칙·개인화규칙·고민함·에이전트기록 삭제 후 재시드)."""
     with session_scope() as s:
         uid = _demo_user_id(s)
         s.query(Transaction).filter_by(user_id=uid).delete()
         s.query(PersonRule).filter_by(user_id=uid).delete()
+        s.query(MerchantRule).filter_by(user_id=uid).delete()
+        s.query(PurchaseHold).filter_by(user_id=uid).delete()
         s.query(AgentEvent).filter_by(user_id=uid).delete()
         s.flush()
         MockFinancialDataProvider().sync_transactions(s, uid)
